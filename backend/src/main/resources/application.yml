@@ -1,0 +1,77 @@
+spring:
+  application:
+    name: estilix-api
+  threads:
+    virtual:
+      enabled: true # requests are I/O-bound; virtual threads are cheap
+  datasource:
+    # Runtime role: not the owner of the tables and without BYPASSRLS (design D4).
+    url: jdbc:postgresql://localhost:5441/estilix
+    username: estilix_app
+    password: estilix_app
+    hikari:
+      connection-timeout: 2000 # fail fast so readiness reports the database as down quickly
+      validation-timeout: 1000
+      data-source-properties:
+        # Without it a network partition blocks a thread forever (the default database health check
+        # even calls isValid(0) = no timeout). OLTP queries here take milliseconds.
+        socketTimeout: 10
+        connectTimeout: 3
+  flyway:
+    # Migrations run as the owner role; the application never holds DDL rights.
+    user: estilix_owner
+    password: estilix_owner
+    locations: classpath:db/migration
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8090/default
+          jwk-set-uri: http://localhost:8090/default/jwks
+
+server:
+  shutdown: graceful
+
+logging:
+  structured:
+    format:
+      console: ecs # JSON logs (Elastic Common Schema); MDC adds correlation, tenant and user ids
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+      show-components: when-authorized
+      roles: PLATFORM_SUPPORT
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+estilix:
+  security:
+    # Expected audience / Cognito app client id. Empty = not checked (tests set it).
+    client-id: estilix-web
+    support-group: platform-support
+  break-glass:
+    max-minutes: 60
+    min-reason-length: 20
+    expire-cron: "0 0 3 * * *"

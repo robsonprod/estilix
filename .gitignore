@@ -1,0 +1,30 @@
+# Gradle / JVM
+.gradle/
+build/
+out/
+*.class
+.kotlin/
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Local env and secrets
+.env
+*.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Study notes (not part of the project)
+explicacao.md
+
+# Guia de estudo em PDF (pessoal)
+guia/

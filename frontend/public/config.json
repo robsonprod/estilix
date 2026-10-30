@@ -1,0 +1,5 @@
+{
+  "authority": "http://localhost:8090/default",
+  "clientId": "estilix-web",
+  "scope": "openid profile email offline_access"
+}

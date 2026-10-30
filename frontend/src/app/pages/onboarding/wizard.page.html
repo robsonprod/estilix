@@ -1,0 +1,143 @@
+<div class="page wizard">
+  <header>
+    <span class="brand-small">Estilix</span>
+    <h1>{{ correction() ? 'Corrigir cadastro' : 'Cadastre seu salão' }}</h1>
+    <ol class="progress" [attr.aria-label]="'Passo ' + step() + ' de ' + lastStep()">
+      @for (s of correction() ? [1, 2] : [1, 2, 3]; track s) {
+        <li [class.done]="s < step()" [class.current]="s === step()"></li>
+      }
+    </ol>
+  </header>
+
+  @if (error(); as e) {
+    <div class="alert error" role="alert">{{ e.detail }}</div>
+  }
+
+  @switch (step()) {
+    @case (1) {
+      <section class="stack">
+        <h2>Qual é o seu tipo de negócio?</h2>
+        <p class="muted">Vamos sugerir os serviços mais comuns para você.</p>
+        @for (o of typeOptions; track o.value) {
+          <button type="button" class="card choice" [class.selected]="type() === o.value" (click)="chooseType(o.value)">
+            <strong>{{ o.title }}</strong>
+            <span class="muted small">{{ o.text }}</span>
+          </button>
+        }
+      </section>
+    }
+
+    @case (2) {
+      <section class="stack">
+        <h2>Dados do salão</h2>
+        <label>Nome do salão
+          <input name="name" [(ngModel)]="name" (blur)="nameChanged()" maxlength="120" autocomplete="organization" />
+        </label>
+        @if (fieldErrors()['name']) { <span class="field-error">{{ fieldErrors()['name'] }}</span> }
+
+        <label>Endereço do salão no link de agendamento
+          <input name="slug" [ngModel]="slug()" (change)="slugChanged($any($event.target).value)" maxlength="60" autocapitalize="off" />
+          <span class="muted small">Só letras minúsculas, números e hífens. Ex.: salao-bela-vista</span>
+        </label>
+        @if (slugNote() || fieldErrors()['slug']) { <span class="field-error">{{ slugNote() ?? fieldErrors()['slug'] }}</span> }
+
+        <label>Seu nome
+          <input name="contactName" [(ngModel)]="contactName" maxlength="120" autocomplete="name" />
+        </label>
+        @if (fieldErrors()['contactName']) { <span class="field-error">{{ fieldErrors()['contactName'] }}</span> }
+
+        <label>Telefone do salão
+          <input name="phone" [(ngModel)]="phone" inputmode="tel" autocomplete="tel" placeholder="+55 85 99999-9999" />
+        </label>
+        @if (fieldErrors()['phone']) { <span class="field-error">{{ fieldErrors()['phone'] }}</span> }
+
+        <div class="row two">
+          <label>Cidade <input name="city" [(ngModel)]="city" autocomplete="address-level2" /></label>
+          <label class="uf">UF <input name="state" [(ngModel)]="state" maxlength="2" autocomplete="address-level1" /></label>
+        </div>
+        @if (fieldErrors()['address.state']) { <span class="field-error">{{ fieldErrors()['address.state'] }}</span> }
+
+        <details>
+          <summary>Endereço completo (opcional)</summary>
+          <div class="stack">
+            <label>Rua <input name="street" [(ngModel)]="street" autocomplete="address-line1" /></label>
+            <div class="row two">
+              <label>Número <input name="number" [(ngModel)]="number" /></label>
+              <label>CEP <input name="postalCode" [(ngModel)]="postalCode" inputmode="numeric" autocomplete="postal-code" /></label>
+            </div>
+            <label>Bairro <input name="district" [(ngModel)]="district" /></label>
+          </div>
+        </details>
+
+        <label>Fuso horário
+          <select name="timeZone" [(ngModel)]="timeZone">
+            @for (tz of defaults()?.timeZones ?? []; track tz) { <option [value]="tz">{{ tz.replace('America/', '').replace('_', ' ') }}</option> }
+          </select>
+        </label>
+
+        <h3>Horário de funcionamento</h3>
+        <p class="muted small">Já deixamos de segunda a sábado, 9h às 19h. Para intervalo de almoço, adicione dois horários no mesmo dia.</p>
+        <app-hours-editor [(intervals)]="hours" [errors]="fieldErrors()" />
+
+        @if (correction()) {
+          <label class="terms">
+            <input type="checkbox" name="acceptTerms" [(ngModel)]="acceptTerms" />
+            <span>Li e aceito os termos de uso. <span class="muted small">{{ defaults()?.termsText }}</span></span>
+          </label>
+          @if (fieldErrors()['acceptTerms']) { <span class="field-error">{{ fieldErrors()['acceptTerms'] }}</span> }
+        }
+      </section>
+    }
+
+    @case (3) {
+      <section class="stack">
+        <h2>Serviços</h2>
+        <p class="muted">Desmarque o que você não faz e ajuste preço e duração. Dá para mudar tudo depois.</p>
+        <ul class="list card services">
+          @for (s of services(); track s.name; let i = $index) {
+            <li>
+              <label class="check">
+                <input type="checkbox" [checked]="s.selected" (change)="toggle(s)" />
+                <span><strong>{{ s.name }}</strong><span class="muted small"> · {{ s.category }}</span></span>
+              </label>
+              @if (s.selected) {
+                <div class="row two">
+                  <label class="small">{{ s.priceType === 'FROM' ? 'A partir de (R$)' : 'Preço (R$)' }}
+                    <input inputmode="decimal" [value]="toBrazilian(s.price)" (change)="setPrice(s, $any($event.target).value)" />
+                  </label>
+                  <label class="small">Duração
+                    <select [value]="s.durationMinutes" (change)="setDuration(s, $any($event.target).value)">
+                      @for (m of hourMinutes; track m) { <option [value]="m" [selected]="m === s.durationMinutes">{{ m }} min</option> }
+                    </select>
+                  </label>
+                </div>
+                @if (fieldErrors()['services[' + i + '].price']) { <span class="field-error">{{ fieldErrors()['services[' + i + '].price'] }}</span> }
+              }
+            </li>
+          }
+        </ul>
+
+        <label class="terms">
+          <input type="checkbox" name="acceptTerms" [(ngModel)]="acceptTerms" />
+          <span>Li e aceito os termos de uso. <span class="muted small">{{ defaults()?.termsText }}</span></span>
+        </label>
+        @if (fieldErrors()['acceptTerms']) { <span class="field-error">{{ fieldErrors()['acceptTerms'] }}</span> }
+      </section>
+    }
+  }
+
+  <footer class="actions">
+    @if (step() > (correction() ? 2 : 1)) {
+      <button type="button" class="btn secondary" (click)="back()">Voltar</button>
+    }
+    <span class="spacer"></span>
+    @if (step() === 2 && !correction()) {
+      <button type="button" class="btn" (click)="next()">Continuar</button>
+    }
+    @if (step() === lastStep()) {
+      <button type="button" class="btn" (click)="submit()" [disabled]="busy() || !acceptTerms">
+        {{ correction() ? 'Reenviar para análise' : 'Enviar para análise' }}
+      </button>
+    }
+  </footer>
+</div>

@@ -1,0 +1,103 @@
+schema: spec-driven
+
+# Constraints an agent cannot infer by reading the code.
+context: |
+  Language: English
+  All artifacts and all code (identifiers, comments, commits, API paths) are written in English.
+  All user-facing text in the web app (labels, messages, e-mails, error messages) is Brazilian
+  Portuguese (pt-BR). Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+  Project: Estilix — a multi-tenant SaaS sold monthly to beauty salons and barbershops in Brazil.
+  It is a real product AND a public portfolio piece of a senior JVM engineer: artifacts must
+  explain decisions and trade-offs, not only what was built.
+
+  Product promise: "solve the salon's daily problem in a few taps".
+    - A customer books online without calling the salon (no account; 6-digit code + manage link).
+    - Staff record a service in at most 3 taps ("Ana, haircut, R$ 80, Pix"); date and professional
+      are filled automatically.
+    - The history drives retention: the salon sees who is overdue and sends a personalized message.
+  Salons and barbershops share one core; the establishment type only changes presets
+  (default services, vocabulary, public page look), never the code paths.
+
+  Roles:
+    PLATFORM_SUPPORT  the platform operator; reads every tenant with personal data MASKED; may open
+                      time-boxed break-glass access with a written reason, always audited and visible
+                      to the tenant owner.
+    OWNER             full access to their own tenant only.
+    MANAGER           operates the tenant (agenda, customers, stock, cash) but cannot manage owners,
+                      tenant settings or see commission/finance reports marked owner-only.
+    PROFESSIONAL      own agenda, own service records, customers they served.
+    Customer          end customer; no account, never logs in to the back office.
+
+  Roadmap (one OpenSpec change each, in order). Each change names the business problem first;
+  a technology enters only when a feature needs it (see docs/skills-map.md).
+    Track A - Sellable MVP
+       1. platform-foundation           tenancy + RLS, Cognito, roles, audit, PII masking, log hygiene, health checks
+       2. salon-setup                   public site + plans (R$ 0), self sign-up, support approval, profile, hours, services, professionals
+       3. scheduling                    agenda + public booking page; Redis rate limit on public/OTP endpoints
+       4. customers-and-service-records customers, history, 3-tap service record, consent, data-subject rights
+       5. event-backbone                transactional outbox -> Kafka, idempotent consumers, retry + DLT, OpenTelemetry
+       6. finance                       cash in/out, daily closing, commission (consumes service-recorded events)
+       7. notifications                 SQS + SES with retry/DLQ, circuit breaker, in-app notifications
+       8. customer-retention            customers to call back, templates, wa.me link, churn-risk model (MLflow)
+       9. aws-deployment                Terraform layers + scripts/aws.sh up|down|status (idle cost ~cents)
+    Track B - AI and platform showcase (each one solves a salon problem)
+      10. ai-gateway-and-guardrails     LiteLLM gateway, per-plan AI quota, guardrails, red-team suite in CI, Langfuse
+      11. help-center-rag               advanced RAG: hybrid search (pgvector + Elasticsearch), rerank, tenant filters, evals
+      12. salon-assistant-agents        LangGraph multi-agent assistant, plan-and-execute, reflexion, human approval
+      13. natural-language-booking      NLP booking from free text; prompt vs LoRA/QLoRA fine-tune decided by evals
+      14. booking-widget-microfrontend  Angular Native Federation: shell + remotes; embeddable booking widget
+      15. customer-search               Elasticsearch fuzzy search for customers (typos, phone fragments)
+      16. kubernetes-deployment         Helm charts on local k3d; optional EKS "demo day" environment, destroyed after
+    Later
+      17. inventory-and-reminders, 18. dashboard + Excel, 19. subscription-billing, 20. invoice-import-ai
+
+  Hard constraints:
+  - Back-end: Kotlin on Java 25, Spring Boot 4, Gradle Kotlin DSL, modular monolith with Spring Modulith.
+  - Front-end: Angular (latest stable), standalone, signals, mobile-first; the main flows must work
+    comfortably on a phone held in one hand.
+  - Database: one PostgreSQL database shared by all tenants. Every tenant-owned table has `tenant_id`
+    and a Row-Level Security policy; the application sets the tenant per transaction. A test MUST prove
+    that one tenant cannot read or write another tenant's rows even when a query omits the filter.
+  - The application connects with a role that is NOT the table owner and has no BYPASSRLS.
+  - Identity: Amazon Cognito user pool (JWT). Locally a fake issuer is allowed; never in production.
+  - LGPD: the salon is the data controller, the platform is the processor. Personal data (names,
+    phones, e-mails, birth dates, notes) never appears in logs, metrics, traces or error messages —
+    only opaque ids. A test captures log output and asserts this.
+  - Money is never a floating point type: BigDecimal (scale 2) or Long cents, currency BRL.
+  - All timestamps are stored in UTC; each tenant has its own time zone (default America/Sao_Paulo).
+  - Domain logic is test-driven; integration tests use Testcontainers with real PostgreSQL — never H2.
+  - Everything runs locally with `docker compose up`. AWS must be fully destroyable/recreatable so an
+    idle environment costs only cents: no NAT Gateway, no always-on load balancer.
+  - Payments of the salon's own customers are only RECORDED (method + amount); the platform never
+    processes card data. Subscription billing is out of scope until change 11.
+  - No secrets in the repository.
+  - AI lives in a separate Python service (`ai-service`: FastAPI, LangGraph, PydanticAI) because the
+    AI ecosystem is Python-first; it talks to the Kotlin API only through its public API and events,
+    never directly to the database. Every LLM call goes through the AI gateway.
+  - Personal data is redacted before any prompt leaves the platform; AI output is never sent to a
+    customer without a human approval step unless the feature's spec says otherwise.
+  - The core product MUST keep working when AI, Kafka consumers, Redis or Elasticsearch are down
+    (degraded mode); every such dependency has a health indicator, timeout and circuit breaker.
+  - Messaging is at-least-once: producers use the transactional outbox, consumers are idempotent,
+    retries use exponential backoff with jitter and end in a dead-letter topic/queue.
+  - Local stack is split in Docker Compose profiles: `core` (fits ~4 GB RAM) and `full`
+    (Kafka, Redis, Elasticsearch, MongoDB, Ollama, observability). Local AI uses Ollama (zero cost).
+  - Every AWS resource belongs to a Terraform layer that `scripts/aws.sh down` destroys; anything
+    with a fixed hourly cost (EKS, MSK, OpenSearch, NAT, ALB) is opt-in for demos only.
+
+rules:
+  proposal:
+    - Always state what is out of scope and which roadmap change covers it
+    - State the security, LGPD and cost impact, even if it is "none"
+    - State the usability goal of the change in terms of taps/steps for the main user task
+  design:
+    - Record each decision with the alternatives considered and why they were rejected
+    - Include a sequence or state diagram (mermaid) for any flow with more than two states
+    - State how tenant isolation is guaranteed for every new table or endpoint
+  specs:
+    - Every requirement touching tenant data has a scenario for cross-tenant access being denied
+    - Every requirement touching personal data states who can see it unmasked
+  tasks:
+    - Domain tasks list the test to write first, then the implementation
+    - Every task group ends with a verification task (tests, build, or a manual check)

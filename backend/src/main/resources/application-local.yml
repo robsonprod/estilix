@@ -1,0 +1,18 @@
+# Local development: demo data, readable logs and Swagger UI.
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed
+
+logging:
+  structured:
+    format:
+      console: ""
+  pattern:
+    # Readable text logs that still show who/which salon/which request (ids only, never personal data).
+    console: "%d{HH:mm:ss.SSS} %-5level [cid=%X{correlation_id} tenant=%X{tenant_id} user=%X{user_id}] %logger{36} - %msg%n%ex"
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

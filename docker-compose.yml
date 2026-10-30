@@ -1,0 +1,63 @@
+# Local environment. `./scripts/local.sh up` starts the `core` services (no profile = always on).
+# Services tagged with the `full` profile (Kafka, Redis, Elasticsearch, MongoDB, Ollama, AI service,
+# observability) arrive with later changes and start with `./scripts/local.sh up full`.
+name: estilix
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: estilix
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres # local only
+    ports:
+      - "5441:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/src/main/resources/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d estilix"]
+      interval: 3s
+      retries: 20
+
+  # Fake identity provider with a login page: type any username (it becomes the token subject).
+  auth:
+    image: ghcr.io/navikt/mock-oauth2-server:6.1.4
+    environment:
+      SERVER_PORT: 8080
+      JSON_CONFIG: '{"interactiveLogin": true}'
+    ports:
+      - "8090:8080"
+
+  api:
+    build: ./backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/estilix
+      SPRING_FLYWAY_URL: jdbc:postgresql://postgres:5432/estilix
+      # The browser sees the issuer at localhost:8090; the API fetches keys inside the network.
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8090/default
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://auth:8080/default/jwks
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8080 && printf \"GET /actuator/health/readiness HTTP/1.0\\r\\n\\r\\n\" >&3 && grep -q UP <&3'"]
+      interval: 5s
+      retries: 30
+      start_period: 20s
+
+  web:
+    build: ./frontend
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "4200:80"
+
+volumes:
+  pgdata:

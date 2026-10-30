@@ -1,0 +1,60 @@
+/* Public site (landing and plans). Global so the prerendered HTML is styled before Angular boots. */
+.pub-wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+.pub-wrap.two { display: grid; gap: 16px; }
+.pub-wrap.center, .center { text-align: center; }
+
+.pub-header {
+  display: flex; align-items: center; gap: 12px; padding: 14px 16px; max-width: 1040px; margin: 0 auto;
+  nav { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  nav > a:not(.btn) { color: var(--ink); text-decoration: none; font-weight: 600; }
+}
+.brand { font-weight: 800; font-size: 1.35rem; letter-spacing: -.02em; color: var(--accent); text-decoration: none; }
+
+.hero {
+  padding: 40px 0 48px;
+  background: radial-gradient(1200px 400px at 80% -10%, var(--accent-soft), transparent 70%);
+  h1 { font-size: clamp(1.9rem, 6vw, 3.1rem); line-height: 1.08; max-width: 760px; margin: 12px 0 16px; letter-spacing: -.03em; }
+}
+.eyebrow { color: var(--accent); font-weight: 700; font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; }
+.lead { font-size: 1.1rem; color: var(--muted); max-width: 640px; margin: 0 0 24px; }
+.center .lead, .lead.center { margin-left: auto; margin-right: auto; }
+
+.pub-section { padding: 40px 0; }
+.pub-section.alt { background: var(--surface); border-block: 1px solid var(--line); }
+.pub-section.cta { padding-bottom: 64px; }
+.section-title { font-size: 1.6rem; text-align: center; margin: 0 0 24px; }
+
+.features { display: grid; gap: 14px; }
+.feature h3 { margin: 12px 0 4px; font-size: 1.05rem; }
+.feature-icon { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 12px;
+  background: var(--accent-soft); color: var(--accent); }
+.feature .row { justify-content: space-between; }
+
+.steps { list-style: none; counter-reset: step; padding: 0; margin: 0; display: grid; gap: 14px; }
+.steps li { counter-increment: step; display: grid; gap: 4px; padding-left: 52px; position: relative; }
+.steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 36px; height: 36px; border-radius: 50%;
+  background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 700; }
+
+.faq { display: grid; gap: 10px; max-width: 760px; margin: 0 auto; }
+.faq summary { font-weight: 600; cursor: pointer; min-height: 28px; }
+.faq details p { margin-top: 10px; }
+
+.plans { display: grid; gap: 16px; max-width: 420px; margin: 24px auto; }
+.plan .price { font-size: 2rem; font-weight: 800; margin: 4px 0 8px; color: var(--accent); }
+.checks li { display: flex; gap: 8px; align-items: center; padding: 8px 0; border: 0; }
+.checks app-icon { color: var(--ok); }
+.checks .soon { color: var(--muted); }
+.checks .soon app-icon { color: var(--muted); }
+.checks .badge { margin-left: auto; }
+
+.pub-footer { border-top: 1px solid var(--line); padding: 24px 0;
+  .pub-wrap { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  a { color: var(--accent); } }
+
+@media (min-width: 720px) {
+  .pub-wrap.two { grid-template-columns: 1fr 1fr; }
+  .features { grid-template-columns: repeat(3, 1fr); }
+  .steps { grid-template-columns: repeat(3, 1fr); }
+  .steps li { padding-left: 0; padding-top: 48px; }
+  .hero { padding: 72px 0 80px; }
+}
