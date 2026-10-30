@@ -1,0 +1,31 @@
+.agenda { max-width: 1200px; }
+.toolbar h1 { margin: 0; }
+.toolbar .btn { min-width: 44px; padding: 0 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.chip { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font: inherit; font-weight: 600; cursor: pointer; }
+.chip.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.panel { margin: 12px 0; }
+.row.two { align-items: flex-start; }
+.row.two > label { flex: 1; }
+details summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+.board { display: grid; grid-template-columns: 44px 1fr; gap: 8px; margin-top: 12px; }
+.ruler { position: relative; }
+.ruler span { position: absolute; right: 4px; font-size: .72rem; color: var(--muted); transform: translateY(-50%); }
+.col-head { display: flex; align-items: center; gap: 6px; min-height: 40px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.tiny { min-height: 32px; padding: 0 8px; font-size: .85rem; }
+.lane { position: relative; background: repeating-linear-gradient(#f1eef2 0 1px, transparent 1px 72px); border-radius: 10px; cursor: pointer; }
+.open { position: absolute; left: 0; right: 0; background: var(--surface); border-radius: 6px; }
+.item { position: absolute; left: 4px; right: 4px; text-align: left; font: inherit; font-size: .82rem; padding: 4px 8px; border-radius: 8px;
+  border: 0; border-left: 4px solid; background: var(--accent-soft); color: var(--ink); overflow: hidden; cursor: pointer; z-index: 1; }
+.item .t { font-weight: 700; }
+.item.block { background: repeating-linear-gradient(45deg, #eee9ec 0 6px, #f6f3f5 6px 12px); color: var(--muted); }
+.item.cancelled { opacity: .45; text-decoration: line-through; z-index: 0; }
+.ruler { margin-top: 40px; }
+@media (max-width: 899px) {
+  .hidden-phone { display: none; }
+}
+@media (min-width: 900px) {
+  .phone-only { display: none; }
+  .board { grid-template-columns: 44px repeat(var(--cols, 1), minmax(160px, 1fr)); }
+}

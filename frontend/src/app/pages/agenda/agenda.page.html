@@ -1,0 +1,140 @@
+<div class="page agenda">
+  <div class="row wrap toolbar">
+    <h1>Agenda</h1>
+    <span class="spacer"></span>
+    <button type="button" class="btn secondary" (click)="go(-1)" aria-label="Dia anterior">‹</button>
+    <button type="button" class="btn secondary" (click)="go('today')">Hoje</button>
+    <button type="button" class="btn secondary" (click)="go(1)" aria-label="Próximo dia">›</button>
+  </div>
+  <p class="muted">{{ longDate(date()) }}</p>
+
+  @if (error(); as e) { <div class="alert" [class.warn]="e.code === 'slot-taken'" [class.error]="e.code !== 'slot-taken'" role="alert">{{ e.detail }}</div> }
+  @if (notice()) { <div class="alert ok" role="status">{{ notice() }}</div> }
+  @if (day()?.linkedProfessionalMissing) {
+    <div class="alert warn">Sua conta ainda não está ligada a um profissional da agenda. Peça ao dono do salão para fazer essa ligação em Profissionais.</div>
+  }
+
+  @if (columns().length > 1) {
+    <div class="chips phone-only" role="tablist" aria-label="Profissional">
+      @for (c of columns(); track c.professionalId) {
+        <button type="button" class="chip" [class.selected]="c.professionalId === focusedId()" (click)="focused.set(c.professionalId)">{{ c.displayName }}</button>
+      }
+    </div>
+  }
+
+  @if (panel(); as p) {
+    <div class="card stack panel">
+      @switch (p.kind) {
+        @case ('book') {
+          <strong>Novo agendamento</strong>
+          <label>Serviço
+            <select [ngModel]="p.serviceId" (ngModelChange)="patch({ serviceId: $event }); refreshBookTimes()">
+              @for (s of servicesOf(p.professionalId); track s.id) { <option [value]="s.id">{{ s.name }} · {{ s.durationMinutes }} min</option> }
+            </select>
+          </label>
+          <div class="row two">
+            <label>Dia <input type="date" [ngModel]="p.date" (ngModelChange)="patch({ date: $event }); refreshBookTimes()" /></label>
+            <label>Horário
+              <select [ngModel]="p.time" (ngModelChange)="patch({ time: $event })">
+                @for (t of p.times; track t) { <option [value]="t">{{ t }}</option> } @empty { <option [value]="null">Sem horários</option> }
+              </select>
+            </label>
+          </div>
+          <label>Nome da cliente <input [ngModel]="p.name" (ngModelChange)="patch({ name: $event })" maxlength="80" /></label>
+          <label>Celular <input [ngModel]="p.phone" (ngModelChange)="patch({ phone: $event })" inputmode="tel" placeholder="(85) 99876-5432" /></label>
+          @if (error()?.errors; as errs) { @for (e of errs | keyvalue; track e.key) { <span class="field-error">{{ e.value }}</span> } }
+          <div class="row">
+            <button type="button" class="btn ghost" (click)="panel.set(null)">Fechar</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn" (click)="book()" [disabled]="busy() || !p.time || p.name.trim().length < 2">Agendar</button>
+          </div>
+        }
+        @case ('item') {
+          @if (p.item.kind === 'BOOKING') {
+            <strong>{{ p.item.serviceName }} · {{ p.item.start }}–{{ p.item.end }}</strong>
+            <div>{{ p.item.customerName }} · <a [href]="'tel:' + p.item.customerPhone">{{ p.item.customerPhone }}</a></div>
+            <div class="muted small">
+              {{ p.item.origin === 'PUBLIC' ? 'Agendado pelo link' : 'Agendado pela equipe' }}
+              {{ p.item.status === 'CANCELLED' ? ' · cancelado pela ' + (p.item.cancelledBy === 'CUSTOMER' ? 'cliente' : 'equipe') : '' }}
+            </div>
+            @if (p.item.status === 'CONFIRMED' && canManage()) {
+              <details>
+                <summary>Remarcar</summary>
+                <div class="stack">
+                  <div class="row two">
+                    <label>Dia <input type="date" [ngModel]="p.moveDate" (ngModelChange)="patch({ moveDate: $event }); refreshMoveTimes()" /></label>
+                    <label>Profissional
+                      <select [ngModel]="p.moveProfessionalId" (ngModelChange)="patch({ moveProfessionalId: $event }); refreshMoveTimes()">
+                        @for (c of columns(); track c.professionalId) { <option [value]="c.professionalId">{{ c.displayName }}</option> }
+                      </select>
+                    </label>
+                  </div>
+                  <button type="button" class="btn secondary" (click)="refreshMoveTimes()">Ver horários livres</button>
+                  @if (p.times.length) {
+                    <div class="chips">
+                      @for (t of p.times; track t) {
+                        <button type="button" class="chip" [class.selected]="t === p.moveTime" (click)="patch({ moveTime: t })">{{ t }}</button>
+                      }
+                    </div>
+                  }
+                  <button type="button" class="btn" (click)="moveItem()" [disabled]="busy() || !p.moveTime">Confirmar novo horário</button>
+                </div>
+              </details>
+              <button type="button" class="btn danger" (click)="cancelItem()" [disabled]="busy()">Cancelar agendamento</button>
+            }
+          } @else {
+            <strong>{{ itemLabel(p.item) }} · {{ p.item.start }}–{{ p.item.end }}</strong>
+            @if (canManage()) { <button type="button" class="btn danger" (click)="removeBlock()">Remover bloqueio</button> }
+          }
+          <button type="button" class="btn ghost" (click)="panel.set(null)">Fechar</button>
+        }
+        @case ('block') {
+          <strong>Bloquear horário</strong>
+          <div class="row two">
+            <label>Dia <input type="date" [ngModel]="p.date" (ngModelChange)="patch({ date: $event })" /></label>
+            <label>Das <input type="time" step="900" [ngModel]="p.start" (ngModelChange)="patch({ start: $event })" /></label>
+            <label>Até <input type="time" step="900" [ngModel]="p.end" (ngModelChange)="patch({ end: $event })" /></label>
+          </div>
+          <label>Motivo (só a equipe vê) <input [ngModel]="p.reason" (ngModelChange)="patch({ reason: $event })" maxlength="80" placeholder="Folga, médico, almoço…" /></label>
+          <div class="row">
+            <button type="button" class="btn ghost" (click)="panel.set(null)">Fechar</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn" (click)="saveBlock()" [disabled]="busy()">Bloquear</button>
+          </div>
+        }
+      }
+    </div>
+  }
+
+  <div class="board" [style.--cols]="columns().length">
+    <div class="ruler" [style.height.px]="(range().to - range().from) * px">
+      @for (h of hours(); track h) { <span [style.top.px]="(h - range().from) * px">{{ (h / 60) | number: '2.0-0' }}h</span> }
+    </div>
+    @for (c of columns(); track c.professionalId) {
+      <section class="col" [class.hidden-phone]="columns().length > 1 && c.professionalId !== focusedId()">
+        <header class="col-head">
+          <span class="dot" [style.background]="c.color"></span>
+          <strong>{{ c.displayName }}</strong>
+          <span class="spacer"></span>
+          @if (canManage()) {
+            <button type="button" class="btn ghost tiny" (click)="openBook(c.professionalId)">+ Agendar</button>
+            <button type="button" class="btn ghost tiny" (click)="openBlock(c.professionalId)">Bloquear</button>
+          }
+        </header>
+        <div class="lane" [style.height.px]="(range().to - range().from) * px" (click)="tapColumn(c, $event)" tabindex="0"
+          (keydown.enter)="canManage() && openBook(c.professionalId)" role="button"
+          [attr.aria-label]="'Agenda de ' + c.displayName">
+          @for (h of inHours(c); track $index) { <div class="open" [style.top.px]="h.top" [style.height.px]="h.height"></div> }
+          @for (i of c.items; track i.id) {
+            <button type="button" class="item" [class.block]="i.kind === 'BLOCK'" [class.cancelled]="i.status === 'CANCELLED'"
+              [style.top.px]="top(i.start)" [style.height.px]="height(i)" [style.borderColor]="c.color" (click)="openItem(c, i)">
+              <span class="t">{{ i.start }}</span> {{ itemLabel(i) }}
+            </button>
+          }
+        </div>
+      </section>
+    } @empty {
+      @if (day() && !day()!.linkedProfessionalMissing) { <p class="muted">Nenhum profissional ativo. Cadastre em Profissionais.</p> }
+    }
+  </div>
+</div>

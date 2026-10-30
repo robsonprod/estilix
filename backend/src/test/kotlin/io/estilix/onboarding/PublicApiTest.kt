@@ -14,7 +14,8 @@ class PublicApiTest : IntegrationTest() {
         assertThat(response.status).isEqualTo(200)
         assertThat(response.node[0].path("code").asString()).isEqualTo("launch")
         assertThat(response.node[0].path("priceLabel").asString()).isEqualTo("R$ 0,00/mês")
-        assertThat(response.node[0].path("features").size()).isGreaterThan(0)
+        val features = response.node[0].path("features").toList().map { it.asString() }
+        assertThat(features).contains("Agenda online sem ligação").doesNotContain("Agenda online sem ligação (em breve)")
     }
 
     @Test

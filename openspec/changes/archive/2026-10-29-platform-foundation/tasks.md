@@ -6,7 +6,7 @@
 - [x] 1.2 Add `docker-compose.yml` with PostgreSQL 17 (init script creating `estilix_owner` and `estilix_app` roles), mock-oauth2-server, the API (multi-stage Dockerfile) and the web app; verify `docker compose up` starts all four and `GET /actuator/health` returns `UP`
 - [x] 1.3 Configure `local` and `test` profiles, virtual threads, ECS JSON logging with MDC (correlation id, tenant id, user id) and Flyway running as `estilix_owner` while the app connects as `estilix_app`; verify with a startup test that asserts the runtime connection user is `estilix_app` and has no `BYPASSRLS`
 - [x] 1.4 Create `frontend/` with Angular latest stable (standalone, zoneless, signals), pt-BR locale, ESLint and a mobile-first empty shell; verify `npm run build` and `npm test` pass
-- [ ] 1.5 Add a GitHub Actions workflow running backend `./gradlew check` and frontend lint/test/build on pull requests and pushes to `main`; verify it passes on the scaffold
+- [x] 1.5 Add a GitHub Actions workflow running backend `./gradlew check` and frontend lint/test/build on pull requests and pushes to `main`; verify it passes on the scaffold
 - [x] 1.6 Add the Spring Modulith verification test for `tenancy`, `identity`, `support`, `audit`, `privacy`; verify it passes and fails when `tenancy` imports from `identity`
 - [x] 1.7 Add `scripts/local.sh up|down|status|logs` (Git Bash, Linux, macOS) wrapping the `core` Compose profile, with `down --wipe` to remove volumes; verify each subcommand on a clean clone and document it in the README
 
@@ -66,7 +66,7 @@
 - [x] 9.1 Write the README in English: product, architecture (module diagram), how isolation works with RLS and why, roles, LGPD approach, how to run locally with the demo users, and the roadmap; verify every command runs as written on a clean clone
 - [x] 9.2 Add ADRs `0001-row-level-security.md`, `0002-roles-in-database-not-token.md`, `0003-personal-data-as-types.md`; verify the README links to them
 - [x] 9.3 Add a `local`-only seed with two salons (a salon and a barbershop), one owner, one manager, one professional each and a support user in mock-oauth2-server; verify an owner of one salon cannot see the other in the UI
-- [ ] 9.4 Run `./gradlew check` and the frontend checks locally and in CI; verify everything is green
+- [x] 9.4 Run `./gradlew check` and the frontend checks locally and in CI; verify everything is green
 
 ## Workflow follow-up
 

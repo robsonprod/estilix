@@ -22,6 +22,7 @@ print_status() {
 
 URLs
   Site ........... http://localhost:4200  (landing e planos, sem login)
+  Agendar ........ http://localhost:4200/agendar/salao-bela-vista  (página pública, sem login)
   App ............ http://localhost:4200/entrar
   API ............ http://localhost:8080  (Swagger: http://localhost:8080/swagger-ui.html)
   Login falso .... http://localhost:8090/default/.well-known/openid-configuration

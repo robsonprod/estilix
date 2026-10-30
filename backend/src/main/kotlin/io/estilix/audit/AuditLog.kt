@@ -24,6 +24,8 @@ enum class AuditAction {
     TENANT_APPROVED,
     TENANT_REJECTED,
     APPROVAL_QUEUE_VIEWED,
+    BOOKING_CANCELLED_BY_STAFF,
+    BOOKING_RESCHEDULED_BY_STAFF,
 }
 
 data class AuditEvent(

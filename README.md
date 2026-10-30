@@ -2,7 +2,7 @@
 
 Multi-tenant SaaS for beauty salons and barbershops in Brazil: online booking without a phone call, 3-tap service records, customer history, cash and commission control, "customers to call back" with personalized messages — and an AI assistant that helps the owner act on it.
 
-> Status: **`platform-foundation` and `salon-setup` implemented** — public site with plans (R$ 0 during launch), self-service sign-up with support approval, salon profile and hours, services and professionals, on top of multi-tenancy with Row-Level Security, roles, audit log and personal-data masking. Next: `scheduling` (agenda and public booking page). Commands marked *(planned)* arrive with the change named next to them.
+> Status: **`platform-foundation`, `salon-setup` and `scheduling` implemented** — public booking page per salon (calendar, free times in green, code and manage link), staff agenda with blocks, self-service sign-up with support approval, services and professionals, on top of multi-tenancy with Row-Level Security, roles, audit log and personal-data masking. Next: `customers-and-service-records`. Commands marked *(planned)* arrive with the change named next to them.
 
 ## Why this project
 
@@ -39,7 +39,7 @@ flowchart LR
 |---|---|
 | Back-end | Kotlin 2.4 on Java 25, Spring Boot 4.1, Spring Modulith, JdbcClient, Flyway, Resilience4j |
 | AI service | Python, FastAPI, LangGraph, PydanticAI, LiteLLM, Ollama, Hugging Face, MLflow, Langfuse |
-| Data | PostgreSQL 17 (RLS, pgvector), Redis, Elasticsearch, MongoDB |
+| Data | PostgreSQL 17 (RLS, exclusion constraints, pgvector), Redis (rate limits), Elasticsearch, MongoDB |
 | Messaging | Kafka (outbox), Amazon SQS + SES for notifications |
 | Identity | Amazon Cognito (mock-oauth2-server locally) |
 | Front-end | Angular, pt-BR, mobile-first, Native Federation |
@@ -71,6 +71,8 @@ Open http://localhost:4200: the public landing page and the plans page need no l
 | `pro-bela` | Professional, linked to "Paula" | Reads services and professionals only |
 | `dono-ze` | Owner, Barbearia do Zé | Never sees Salão Bela Vista |
 
+Public booking, no login: open http://localhost:4200/agendar/salao-bela-vista → choose a service → (professional or "Qualquer profissional") → a green time → name and phone → confirmed with a 6-digit code and a manage link; "Adicionar mais um serviço" books the next service right when the first ends. Then sign in as `dona-bela` → **Agenda**: the booking is there next to the demo bookings and a block. Two people confirming the same time: the first wins, the second sees "Esse horário acabou de ser preenchido".
+
 The full sign-up flow, end to end: open `/planos` → "Assinar" → log in as a new name → choose "Barbearia" → name, phone and city (hours and services already filled) → accept the terms → "Enviar para análise". Then log in as `suporte`, open "Salões aguardando liberação" and approve. Log in again with the new name: the salon opens with its services.
 
 Swagger UI (local profile): http://localhost:8080/swagger-ui.html
@@ -78,7 +80,7 @@ Swagger UI (local profile): http://localhost:8080/swagger-ui.html
 ## Tests
 
 ```bash
-cd backend && ./gradlew check        # 155 tests: real PostgreSQL (Testcontainers) + real signed JWTs
+cd backend && ./gradlew check        # 213 tests: real PostgreSQL and Redis (Testcontainers) + real signed JWTs
 cd frontend && npx ng lint && npx ng test --watch=false && npx ng build
 ```
 
@@ -94,7 +96,9 @@ What the back-end suite proves, among others:
 - Spring Modulith module boundaries (a probe adding `tenancy → identity` makes the build fail);
 - the tenant lifecycle: the application cannot create an active salon or approve its own, one open application per person even under concurrency, concurrent approve/reject applies exactly one decision;
 - overlapping opening hours are refused by an exclusion constraint, and a professional can never be linked to another salon's service (composite foreign key), even with the right RLS context;
-- the public endpoints expose no salon data; the landing page and plans are prerendered HTML.
+- the public endpoints expose no salon data; the landing page and plans are prerendered HTML;
+- 20 concurrent bookings for the same professional and time: exactly one wins (with a negative control that drops the exclusion constraint and shows duplicates); a block can never overlap a booking;
+- public rate limits per IP and per phone return 429 with Retry-After, keep working per instance when Redis is down, and readiness stays UP without Redis.
 
 The Kotlin compiler targets JVM 25 (`jvmTarget = 25`, class file major version 69).
 
@@ -104,6 +108,7 @@ The Kotlin compiler targets JVM 25 (`jvmTarget = 25`, class file major version 6
 - [ADR 0002 — Identity in the token, salon roles in the database](docs/adr/0002-roles-in-database-not-token.md)
 - [ADR 0003 — Personal data declared as types](docs/adr/0003-personal-data-as-types.md)
 - [ADR 0004 — Tenant lifecycle guarded by the database; self-service onboarding with approval](docs/adr/0004-tenant-lifecycle-and-onboarding.md)
+- [ADR 0005 — One agenda table guarded by an exclusion constraint; public requests under RLS](docs/adr/0005-agenda-entries-and-public-tenant-context.md)
 
 ## Turn AWS on and off
 

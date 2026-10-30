@@ -9,7 +9,7 @@ class Fixtures(private val admin: JdbcClient) {
     fun truncateAll() {
         // TRUNCATE does not fire the row-level append-only trigger of audit_event.
         admin.sql(
-            "truncate professional_hours, professional_service, professional, service, opening_hours, " +
+            "truncate agenda_entry, booking_group, professional_hours, professional_service, professional, service, opening_hours, " +
                 "break_glass_session, audit_event, membership, app_user, tenant cascade",
         ).update()
     }

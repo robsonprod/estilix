@@ -22,6 +22,12 @@ spring:
     user: estilix_owner
     password: estilix_owner
     locations: classpath:db/migration
+  data:
+    redis:
+      host: localhost
+      port: 6380
+      timeout: 200ms # the rate limiter falls back to memory instead of waiting
+      connect-timeout: 500ms
   security:
     oauth2:
       resourceserver:
@@ -31,6 +37,8 @@ spring:
 
 server:
   shutdown: graceful
+  # remoteAddr comes from X-Forwarded-For only when the request arrives from a trusted internal proxy.
+  forward-headers-strategy: native
 
 logging:
   structured:
@@ -67,6 +75,14 @@ springdoc:
     enabled: false
 
 estilix:
+  booking:
+    # Keys the HMAC of booking codes (design D6). Local value only; AWS reads it from Secrets Manager.
+    code-pepper: local-dev-pepper-change-me
+  rate-limit:
+    public-reads-per-minute: 120
+    public-writes-per-minute: 10
+    bookings-per-phone-per-hour: 5
+    code-failures-per-15-minutes: 5
   security:
     # Expected audience / Cognito app client id. Empty = not checked (tests set it).
     client-id: estilix-web

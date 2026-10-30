@@ -80,3 +80,26 @@ on conflict (id) do nothing;
 insert into membership (tenant_id, user_id, role) values
     ('33333333-3333-3333-3333-333333333333', 'a0000000-0000-0000-0000-000000000006', 'OWNER')
 on conflict (tenant_id, user_id) do nothing;
+
+-- Scheduling demo (change scheduling): bookings today and tomorrow, and a block -------------------
+-- Times are relative to "today" in the salons' time zone (America/Fortaleza), so the agenda is never empty.
+-- Codes of these demo groups are not usable (dummy hashes); new bookings through the page get real ones.
+insert into booking_group (id, tenant_id, phone, code_hash, token_hash) values
+    ('6a000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '+5585988881111', 'demo', 'demo-token-1'),
+    ('6a000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', '+5585988882222', 'demo', 'demo-token-2'),
+    ('6b000000-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', '+5585988883333', 'demo', 'demo-token-3')
+on conflict (id) do nothing;
+
+insert into agenda_entry (id, tenant_id, kind, professional_id, service_id, group_id, starts_at, ends_at, customer_name, customer_phone, origin, block_reason)
+select v.id::uuid, v.tenant::uuid, v.kind, v.pro::uuid, v.svc::uuid, v.grp::uuid,
+       (date_trunc('day', now() at time zone 'America/Fortaleza') + v.day_offset * interval '1 day' + v.start_min * interval '1 minute') at time zone 'America/Fortaleza',
+       (date_trunc('day', now() at time zone 'America/Fortaleza') + v.day_offset * interval '1 day' + v.end_min * interval '1 minute') at time zone 'America/Fortaleza',
+       v.customer, v.phone, v.origin, v.reason
+from (values
+    ('7a000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'BOOKING', '9a000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001', '6a000000-0000-0000-0000-000000000001', 0, 900, 960, 'Marina Costa', '+5585988881111', 'PUBLIC', null),
+    ('7a000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'BOOKING', '9a000000-0000-0000-0000-000000000002', '5a000000-0000-0000-0000-000000000004', '6a000000-0000-0000-0000-000000000002', 1, 600, 645, 'Júlia Ramos', '+5585988882222', 'STAFF', null),
+    ('7a000000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'BLOCK', '9a000000-0000-0000-0000-000000000001', null, null, 1, 960, 1020, null, null, null, 'Curso'),
+    ('7b000000-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'BOOKING', '9b000000-0000-0000-0000-000000000001', '5b000000-0000-0000-0000-000000000001', '6b000000-0000-0000-0000-000000000001', 0, 660, 690, 'Rafael Dias', '+5585988883333', 'PUBLIC', null)
+) as v(id, tenant, kind, pro, svc, grp, day_offset, start_min, end_min, customer, phone, origin, reason)
+where not exists (select 1 from agenda_entry e where e.id = v.id::uuid)
+on conflict do nothing;

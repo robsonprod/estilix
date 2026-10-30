@@ -22,7 +22,7 @@ export function landingFor(me: Me, rememberedTenantId: string | null, subscribeI
 export interface MenuItem {
   label: string;
   path: string;
-  icon: 'home' | 'team' | 'shield' | 'user' | 'store' | 'scissors' | 'people' | 'more';
+  icon: 'home' | 'team' | 'shield' | 'user' | 'store' | 'scissors' | 'people' | 'more' | 'calendar';
   /** Shown in the phone's bottom bar; the others live under "Mais". */
   primary: boolean;
 }
@@ -31,8 +31,9 @@ export interface MenuItem {
 export function menuFor(permissions: readonly Permission[]): MenuItem[] {
   const can = (p: Permission) => permissions.includes(p);
   const items: MenuItem[] = [{ label: 'Início', path: '', icon: 'home', primary: true }];
+  if (can('VIEW_AGENDA')) items.push({ label: 'Agenda', path: 'agenda', icon: 'calendar', primary: true });
   if (can('VIEW_SERVICES')) items.push({ label: 'Serviços', path: 'servicos', icon: 'scissors', primary: true });
-  if (can('VIEW_PROFESSIONALS')) items.push({ label: 'Profissionais', path: 'profissionais', icon: 'people', primary: true });
+  if (can('VIEW_PROFESSIONALS')) items.push({ label: 'Profissionais', path: 'profissionais', icon: 'people', primary: !can('VIEW_AGENDA') });
   if (can('VIEW_SALON')) items.push({ label: 'Salão', path: 'salao', icon: 'store', primary: false });
   if (can('VIEW_MEMBERS')) items.push({ label: 'Equipe', path: 'equipe', icon: 'team', primary: false });
   if (can('VIEW_AUDIT') || can('VIEW_ACCESS_HISTORY')) items.push({ label: 'Acessos', path: 'acessos', icon: 'shield', primary: false });

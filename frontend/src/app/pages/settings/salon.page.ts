@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
-import { Address, EMPTY_ADDRESS, HoursInterval, Problem, SalonProfile } from '../../core/models';
+import { Address, BookingRules, EMPTY_ADDRESS, HoursInterval, Problem, SalonProfile } from '../../core/models';
+import { SchedulingApi } from '../../core/scheduling-api.service';
 import { SessionService } from '../../core/session.service';
 import { HoursEditor } from '../../shared/hours-editor';
 
@@ -62,6 +63,19 @@ const TIME_ZONES = [
             </ul>
           }
         </div>
+
+        @if (rules(); as r) {
+          <h2>Agendamento online</h2>
+          <form class="card stack" (ngSubmit)="saveRules()">
+            <fieldset [disabled]="!canEditRules()" class="stack">
+              <label>A agenda abre quantos dias à frente? <input type="number" name="daysAhead" min="1" max="90" [(ngModel)]="r.daysAhead" /></label>
+              <label>Antecedência mínima para marcar (minutos) <input type="number" name="minNotice" min="0" max="1440" step="15" [(ngModel)]="r.minNoticeMinutes" /></label>
+              <label>Cliente pode cancelar/remarcar até quantos minutos antes? <input type="number" name="cancelNotice" min="0" max="2880" step="15" [(ngModel)]="r.cancelNoticeMinutes" /></label>
+            </fieldset>
+            @for (e of ruleErrors(); track e) { <span class="field-error">{{ e }}</span> }
+            @if (canEditRules()) { <button class="btn" type="submit" [disabled]="busy()">Salvar regras</button> }
+          </form>
+        }
       }
     </div>
   `,
@@ -72,7 +86,13 @@ const TIME_ZONES = [
 export class SalonPage implements OnInit {
   private readonly api = inject(ApiService);
   private readonly session = inject(SessionService);
+  private readonly scheduling = inject(SchedulingApi);
   protected readonly timeZones = TIME_ZONES;
+  protected readonly rules = signal<BookingRules | null>(null);
+  protected readonly canEditRules = computed(() => this.session.permissions().includes('MANAGE_BOOKING_RULES'));
+  protected readonly ruleErrors = computed(() =>
+    Object.entries(this.error()?.errors ?? {}).filter(([k]) => ['daysAhead', 'minNoticeMinutes', 'cancelNoticeMinutes'].includes(k)).map(([, v]) => v),
+  );
   protected readonly days = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
   protected readonly profile = signal<SalonProfile | null>(null);
   protected address: Address = { ...EMPTY_ADDRESS };
@@ -93,6 +113,17 @@ export class SalonPage implements OnInit {
       this.profile.set(profile);
       this.address = { ...profile.address };
       this.hours.set(hours.intervals);
+      if (this.session.permissions().includes('VIEW_AGENDA')) this.rules.set(await this.scheduling.rules(this.tenantId));
+    });
+  }
+
+  protected saveRules(): Promise<void> {
+    const r = this.rules()!;
+    return this.run(async () => {
+      this.rules.set(await this.scheduling.updateRules(this.tenantId, {
+        daysAhead: Number(r.daysAhead), minNoticeMinutes: Number(r.minNoticeMinutes), cancelNoticeMinutes: Number(r.cancelNoticeMinutes),
+      }));
+      this.notice.set('Regras de agendamento salvas.');
     });
   }
 

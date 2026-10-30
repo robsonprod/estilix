@@ -2,7 +2,7 @@
 
 ## 0. Prerequisite
 
-- [ ] 0.1 Archive `platform-foundation` (after its CI tasks 1.5 and 9.4 are green) so `tenancy/tenant-isolation` exists in the main specs; verify `openspec validate salon-setup --strict` no longer reports that the MODIFIED delta would be refused
+- [x] 0.1 Archive `platform-foundation` (after its CI tasks 1.5 and 9.4 are green) so `tenancy/tenant-isolation` exists in the main specs; verify `openspec validate salon-setup --strict` no longer reports that the MODIFIED delta would be refused
 
 ## 1. Tenant lifecycle and plans (database first)
 
@@ -52,7 +52,7 @@
 - [x] 8.1 Extend the local seed: services, hours and professionals for both demo salons, and one pending salon for the support queue; verify the demo flows listed in the README work after `./scripts/local.sh down --wipe` and `up`
 - [x] 8.2 Update the README (public site, onboarding flow, demo steps) and add ADR `0004-tenant-lifecycle-and-onboarding.md`; verify every command in the README runs as written
 - [x] 8.3 Update the study guide PDF with the onboarding flow, the composite-FK and exclusion-constraint techniques and the new interview questions; verify all diagrams render
-- [ ] 8.4 Run `./gradlew check`, frontend lint/test/build and `openspec validate salon-setup --strict`; verify everything is green locally and in CI
+- [x] 8.4 Run `./gradlew check`, frontend lint/test/build and `openspec validate salon-setup --strict`; verify everything is green locally and in CI
 
 ## Workflow follow-up
 

@@ -1,0 +1,16 @@
+.booking { max-width: 560px; margin: 0 auto; padding: 16px 16px 48px; display: grid; gap: 20px; }
+.salon h1 { margin-bottom: 2px; }
+h2 { margin: 0; font-size: 1.05rem; }
+.choices { display: grid; gap: 8px; }
+.choice { display: grid; gap: 2px; text-align: left; font: inherit; color: inherit; cursor: pointer; min-height: 56px; padding: 12px 14px; }
+.choice.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font: inherit;
+  font-weight: 600; cursor: pointer; }
+.chip.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.done { gap: 14px; }
+.code-box { display: grid; justify-items: center; padding: 12px; background: var(--accent-soft); border-radius: 12px; }
+.code { font-size: 2rem; letter-spacing: .12em; color: var(--accent); }
+.link { word-break: break-all; color: var(--accent); }
+.center-box { text-align: center; margin-top: 15vh; }
+.powered { text-align: center; }

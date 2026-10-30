@@ -65,24 +65,24 @@ describe('menuFor', () => {
   const labels = (p: Permission[]) => menuFor(p).map((i) => i.label);
   const owner: Permission[] = [
     'VIEW_MEMBERS', 'MANAGE_MEMBERS', 'VIEW_AUDIT', 'VIEW_ACCESS_HISTORY', 'VIEW_SALON', 'MANAGE_SALON',
-    'VIEW_SERVICES', 'MANAGE_SERVICES', 'VIEW_PROFESSIONALS', 'MANAGE_PROFESSIONALS',
+    'VIEW_SERVICES', 'MANAGE_SERVICES', 'VIEW_PROFESSIONALS', 'MANAGE_PROFESSIONALS', 'VIEW_AGENDA', 'MANAGE_AGENDA', 'MANAGE_BOOKING_RULES',
   ];
 
   it('owner sees everything', () => {
-    expect(labels(owner)).toEqual(['Início', 'Serviços', 'Profissionais', 'Salão', 'Equipe', 'Acessos', 'Perfil']);
+    expect(labels(owner)).toEqual(['Início', 'Agenda', 'Serviços', 'Profissionais', 'Salão', 'Equipe', 'Acessos', 'Perfil']);
   });
 
   it('manager sees the catalog and the team but not the access history', () => {
-    expect(labels(['VIEW_MEMBERS', 'VIEW_SALON', 'VIEW_SERVICES', 'MANAGE_SERVICES', 'VIEW_PROFESSIONALS', 'MANAGE_PROFESSIONALS']))
-      .toEqual(['Início', 'Serviços', 'Profissionais', 'Salão', 'Equipe', 'Perfil']);
+    expect(labels(['VIEW_MEMBERS', 'VIEW_SALON', 'VIEW_SERVICES', 'MANAGE_SERVICES', 'VIEW_PROFESSIONALS', 'MANAGE_PROFESSIONALS', 'VIEW_AGENDA', 'MANAGE_AGENDA']))
+      .toEqual(['Início', 'Agenda', 'Serviços', 'Profissionais', 'Salão', 'Equipe', 'Perfil']);
   });
 
   it('professional sees neither team management nor the audit log', () => {
-    expect(labels(['VIEW_SALON', 'VIEW_SERVICES', 'VIEW_PROFESSIONALS'])).toEqual(['Início', 'Serviços', 'Profissionais', 'Salão', 'Perfil']);
+    expect(labels(['VIEW_SALON', 'VIEW_SERVICES', 'VIEW_PROFESSIONALS', 'VIEW_AGENDA', 'MANAGE_AGENDA'])).toEqual(['Início', 'Agenda', 'Serviços', 'Profissionais', 'Salão', 'Perfil']);
   });
 
   it('the phone bottom bar keeps at most the primary items plus "Mais"', () => {
     const bar = bottomBarFor(menuFor(owner)).map((i) => i.label);
-    expect(bar).toEqual(['Início', 'Serviços', 'Profissionais', 'Mais']);
+    expect(bar).toEqual(['Início', 'Agenda', 'Serviços', 'Mais']);
   });
 });

@@ -13,6 +13,8 @@ import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.postgresql.PostgreSQLContainer
+import org.testcontainers.containers.GenericContainer
+import org.testcontainers.utility.DockerImageName
 import org.testcontainers.utility.MountableFile
 import tools.jackson.databind.json.JsonMapper
 
@@ -78,6 +80,9 @@ abstract class IntegrationTest {
 
         val OAUTH = MockOAuth2Server()
 
+        /** Shared Redis for the rate limiter (no dedicated Testcontainers module: a generic container is enough). */
+        val REDIS: GenericContainer<*> = GenericContainer(DockerImageName.parse("redis:7-alpine")).withExposedPorts(6379)
+
         val ADMIN: JdbcClient by lazy {
             JdbcClient.create(DriverManagerDataSource(POSTGRES.jdbcUrl, POSTGRES.username, POSTGRES.password))
         }
@@ -85,6 +90,7 @@ abstract class IntegrationTest {
         init {
             POSTGRES.start()
             OAUTH.start()
+            REDIS.start()
         }
 
         @JvmStatic
@@ -95,6 +101,8 @@ abstract class IntegrationTest {
             registry.add("spring.security.oauth2.resourceserver.jwt.issuer-uri") { OAUTH.issuerUrl("default").toString() }
             registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri") { OAUTH.jwksUrl("default").toString() }
             registry.add("estilix.security.client-id") { CLIENT_ID }
+            registry.add("spring.data.redis.host") { REDIS.host }
+            registry.add("spring.data.redis.port") { REDIS.getMappedPort(6379) }
         }
     }
 }

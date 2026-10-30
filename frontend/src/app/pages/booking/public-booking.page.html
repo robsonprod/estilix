@@ -1,0 +1,131 @@
+<div class="booking">
+  @if (notFound()) {
+    <div class="card stack center-box">
+      <h1>Salão não encontrado</h1>
+      <p class="muted">Confira o link com o salão.</p>
+    </div>
+  } @else if (salon(); as s) {
+    <header class="salon">
+      <h1>{{ s.name }}</h1>
+      <p class="muted small">{{ s.city }}{{ s.phone ? ' · ' + s.phone : '' }}</p>
+    </header>
+
+    @if (error(); as e) {
+      <div class="alert" [class.warn]="e.code === 'slot-taken'" [class.error]="e.code !== 'slot-taken'" role="alert">{{ e.detail }}</div>
+    }
+
+    @if (done(); as d) {
+      <section class="card stack done">
+        <span class="badge ok">Agendamento confirmado</span>
+        <ul class="list">
+          @for (b of d.bookings; track b.id) {
+            <li>
+              <strong>{{ b.serviceName }}</strong> com {{ b.professionalName }}
+              <div class="muted small">{{ longDate(b.date) }} · {{ b.start }}–{{ b.end }}</div>
+            </li>
+          }
+        </ul>
+        @if (d.code) {
+          <div class="code-box">
+            <span class="muted small">Seu código</span>
+            <strong class="code">{{ d.code.slice(0, 3) }} {{ d.code.slice(3) }}</strong>
+          </div>
+        }
+        <div class="stack">
+          <span class="small">Guarde este link para remarcar ou cancelar até {{ noticeLabel(s.cancelNoticeMinutes) }} antes:</span>
+          <a class="link" [href]="manageLink()">{{ manageLink() }}</a>
+          <button type="button" class="btn secondary" (click)="copyLink()">Copiar link</button>
+        </div>
+        @if (!adding()) {
+          <button type="button" class="btn" (click)="adding.set(true)">Adicionar mais um serviço</button>
+        } @else {
+          <div class="stack">
+            <strong>Qual serviço logo em seguida?</strong>
+            @for (sv of s.services; track sv.id) {
+              <button type="button" class="card choice" (click)="addNext(sv.id)" [disabled]="busy()">
+                <span><strong>{{ sv.name }}</strong></span>
+                <span class="muted small">{{ sv.durationMinutes }} min · {{ sv.priceLabel }}</span>
+              </button>
+            }
+            <button type="button" class="btn ghost" (click)="adding.set(false)">Não, obrigado</button>
+          </div>
+        }
+      </section>
+    } @else {
+      <section class="stack">
+        <h2>1. Escolha o serviço</h2>
+        <div class="choices">
+          @for (sv of s.services; track sv.id) {
+            <button type="button" class="card choice" [class.selected]="sv.id === serviceId()" (click)="chooseService(sv.id)">
+              <strong>{{ sv.name }}</strong>
+              <span class="muted small">{{ sv.durationMinutes }} min · {{ sv.priceLabel }}</span>
+            </button>
+          } @empty {
+            <p class="muted">Este salão ainda não abriu horários online.</p>
+          }
+        </div>
+      </section>
+
+      @if (serviceId() && who().length > 1) {
+        <section class="stack">
+          <h2>2. Com quem?</h2>
+          <div class="chips">
+            <button type="button" class="chip" [class.selected]="professionalId() === null" (click)="chooseProfessional(null)">Qualquer profissional</button>
+            @for (p of who(); track p.id) {
+              <button type="button" class="chip" [class.selected]="professionalId() === p.id" (click)="chooseProfessional(p.id)">{{ p.displayName }}</button>
+            }
+          </div>
+        </section>
+      }
+
+      @if (serviceId() && professionalId() !== undefined) {
+        <section class="stack">
+          <h2>3. Escolha o dia</h2>
+          <div class="card">
+            <app-calendar [month]="month()" [enabled]="days()" [selected]="date()" [minMonth]="bounds().first" [maxMonth]="bounds().last"
+              (pick)="chooseDay($event)" (monthChange)="moveMonth($event)" />
+          </div>
+          @if (!days().length && !busy()) { <p class="muted small">Sem horários livres neste mês.</p> }
+        </section>
+      }
+
+      @if (date()) {
+        <section class="stack">
+          <h2>4. Horário · {{ longDate(date()!) }}</h2>
+          <app-time-grid [free]="free()" [unavailable]="unavailable()" [selected]="time()" (pick)="time.set($event)" />
+        </section>
+      }
+
+      @if (time()) {
+        <section class="card stack">
+          <h2>5. Seus dados</h2>
+          <p class="muted small">{{ service()?.name }} · {{ whoName() }} · {{ longDate(date()!) }} às {{ time() }}</p>
+          <label>Nome <input name="name" [(ngModel)]="name" maxlength="80" autocomplete="name" /></label>
+          @if (error()?.errors?.['customerName']; as m) { <span class="field-error">{{ m }}</span> }
+          <label>Celular com DDD <input name="phone" [(ngModel)]="phone" inputmode="tel" autocomplete="tel" placeholder="(85) 99876-5432" /></label>
+          @if (phoneError() ?? error()?.errors?.['customerPhone']; as m) { <span class="field-error">{{ m }}</span> }
+          <p class="muted small">Usamos seu nome e telefone só para este agendamento.</p>
+          <button type="button" class="btn block" (click)="confirm()" [disabled]="busy() || name.trim().length < 2">Confirmar agendamento</button>
+        </section>
+      }
+
+      <section class="lookup">
+        @if (!lookupOpen()) {
+          <button type="button" class="btn ghost block" (click)="lookupOpen.set(true)">Já agendei: ver, remarcar ou cancelar</button>
+        } @else {
+          <div class="card stack">
+            <strong>Encontrar meu agendamento</strong>
+            <label>Celular <input name="lookupPhone" [(ngModel)]="lookupPhone" inputmode="tel" /></label>
+            <label>Código de 6 dígitos <input name="lookupCode" [(ngModel)]="lookupCode" inputmode="numeric" maxlength="7" /></label>
+            <button type="button" class="btn" (click)="lookup()" [disabled]="busy()">Abrir</button>
+          </div>
+        }
+      </section>
+    }
+  } @else if (!error()) {
+    <p class="muted center-box">Carregando…</p>
+  } @else {
+    <div class="alert error">{{ error()!.detail }}</div>
+  }
+  <footer class="powered muted small">Agendamento online por <strong>Estilix</strong></footer>
+</div>

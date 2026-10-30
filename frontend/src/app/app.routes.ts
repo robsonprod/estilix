@@ -24,6 +24,9 @@ export const routes: Routes = [
   // Public, prerendered, no sign-in (spec marketing/public-site).
   { path: '', pathMatch: 'full', loadComponent: () => import('./public/home.page').then((m) => m.HomePage) },
   { path: 'planos', loadComponent: () => import('./public/plans.page').then((m) => m.PlansPage) },
+  // Public booking, no login (spec scheduling/public-booking).
+  { path: 'agendar/:slug', loadComponent: () => import('./pages/booking/public-booking.page').then((m) => m.PublicBookingPage) },
+  { path: 'agendamento/:token', loadComponent: () => import('./pages/booking/manage-booking.page').then((m) => m.ManageBookingPage) },
 
   // Everything else requires sign-in.
   {
@@ -42,6 +45,7 @@ export const routes: Routes = [
         loadComponent: () => import('./layout/tenant-layout').then((m) => m.TenantLayout),
         children: [
           { path: '', loadComponent: () => import('./pages/tenant-home.page').then((m) => m.TenantHomePage) },
+          { path: 'agenda', loadComponent: () => import('./pages/agenda/agenda.page').then((m) => m.AgendaPage) },
           { path: 'servicos', loadComponent: () => import('./pages/settings/services.page').then((m) => m.ServicesPage) },
           { path: 'profissionais', loadComponent: () => import('./pages/settings/professionals.page').then((m) => m.ProfessionalsPage) },
           { path: 'salao', loadComponent: () => import('./pages/settings/salon.page').then((m) => m.SalonPage) },

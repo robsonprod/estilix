@@ -46,7 +46,7 @@ class SecurityConfiguration(
             .authorizeHttpRequests {
                 it.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
                 it.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                it.requestMatchers(HttpMethod.GET, "/api/v1/public/**").permitAll()
+                it.requestMatchers("/api/v1/public/**").permitAll()
                 it.requestMatchers("/api/v1/support/**").hasRole("PLATFORM_SUPPORT")
                 it.anyRequest().authenticated()
             }

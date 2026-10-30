@@ -12,5 +12,10 @@ logging:
     console: "%d{HH:mm:ss.SSS} %-5level [cid=%X{correlation_id} tenant=%X{tenant_id} user=%X{user_id}] %logger{36} - %msg%n%ex"
 
 estilix:
+  rate-limit: # high so unrelated tests never trip; RateLimitApiTest sets its own
+    public-reads-per-minute: 100000
+    public-writes-per-minute: 100000
+    bookings-per-phone-per-hour: 100000
+    code-failures-per-15-minutes: 5
   break-glass:
     expire-cron: "-" # disabled; tests call the job explicitly

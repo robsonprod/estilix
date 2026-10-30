@@ -20,6 +20,16 @@ services:
       interval: 3s
       retries: 20
 
+  # Shared counters for the public rate limits (the API falls back to memory if it is down).
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      retries: 20
+
   # Fake identity provider with a login page: type any username (it becomes the token subject).
   auth:
     image: ghcr.io/navikt/mock-oauth2-server:6.1.4
@@ -36,6 +46,8 @@ services:
         condition: service_healthy
       auth:
         condition: service_started
+      redis:
+        condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/estilix
@@ -43,6 +55,8 @@ services:
       # The browser sees the issuer at localhost:8090; the API fetches keys inside the network.
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8090/default
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://auth:8080/default/jwks
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
     ports:
       - "8080:8080"
     healthcheck:

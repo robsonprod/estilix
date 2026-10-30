@@ -25,7 +25,8 @@ describe('HomePage', () => {
       expect(cards[i].textContent).toContain(f.title);
       expect(cards[i].textContent).toContain(f.status === 'soon' ? 'Em breve' : 'Disponível');
     });
-    expect(FEATURES.find((f) => f.title.startsWith('Agenda'))?.status).toBe('soon');
+    expect(FEATURES.find((f) => f.title.startsWith('Agenda'))?.status).toBe('available');
+    expect(FEATURES.find((f) => f.title.startsWith('Caixa'))?.status).toBe('soon');
   });
 
   it('offers "Entrar" to visitors and "Abrir o Estilix" to signed-in users', () => {

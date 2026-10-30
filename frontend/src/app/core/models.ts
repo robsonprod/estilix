@@ -11,7 +11,10 @@ export type Permission =
   | 'VIEW_SERVICES'
   | 'MANAGE_SERVICES'
   | 'VIEW_PROFESSIONALS'
-  | 'MANAGE_PROFESSIONALS';
+  | 'MANAGE_PROFESSIONALS'
+  | 'VIEW_AGENDA'
+  | 'MANAGE_AGENDA'
+  | 'MANAGE_BOOKING_RULES';
 export type EstablishmentType = 'SALON' | 'BARBERSHOP';
 export type TenantStatus = 'PENDING_APPROVAL' | 'REJECTED' | 'ACTIVE' | 'SUSPENDED';
 
@@ -246,3 +249,79 @@ export interface PendingSalon {
 export const WEEKDAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
 
 export const EMPTY_ADDRESS: Address = { street: null, number: null, district: null, city: null, state: null, postalCode: null };
+
+/** Scheduling (change scheduling). Dates are "YYYY-MM-DD", times "HH:mm" in the salon's time zone. */
+export interface PublicSalon {
+  name: string;
+  slug: string;
+  phone: string | null;
+  city: string | null;
+  daysAhead: number;
+  cancelNoticeMinutes: number;
+  services: { id: string; name: string; category: string; durationMinutes: number; priceLabel: string }[];
+  professionals: { id: string; displayName: string; serviceIds: string[] }[];
+}
+
+export interface DayTimes {
+  date: string;
+  free: string[];
+  unavailable: string[];
+}
+
+export interface PublicBookingItem {
+  id: string;
+  serviceId: string;
+  professionalId: string;
+  serviceName: string;
+  professionalName: string;
+  date: string;
+  start: string;
+  end: string;
+  status: 'CONFIRMED' | 'CANCELLED';
+  canChange: boolean;
+}
+
+export interface GroupView {
+  salonName: string;
+  salonSlug: string;
+  salonPhone: string | null;
+  cancelNoticeMinutes: number;
+  bookings: PublicBookingItem[];
+  code: string | null;
+  token: string | null;
+}
+
+export interface BookingRules {
+  daysAhead: number;
+  minNoticeMinutes: number;
+  cancelNoticeMinutes: number;
+}
+
+export interface AgendaItem {
+  id: string;
+  kind: 'BOOKING' | 'BLOCK';
+  start: string;
+  end: string;
+  status: 'CONFIRMED' | 'CANCELLED';
+  serviceName: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  origin: 'PUBLIC' | 'STAFF' | null;
+  blockReason: string | null;
+  cancelledBy: 'CUSTOMER' | 'STAFF' | null;
+}
+
+export interface AgendaColumn {
+  professionalId: string;
+  displayName: string;
+  color: string;
+  hours: HoursInterval[];
+  items: AgendaItem[];
+}
+
+export interface AgendaDay {
+  date: string;
+  timeZone: string;
+  professionals: AgendaColumn[];
+  linkedProfessionalMissing: boolean;
+}
