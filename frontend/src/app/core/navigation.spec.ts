@@ -66,10 +66,11 @@ describe('menuFor', () => {
   const owner: Permission[] = [
     'VIEW_MEMBERS', 'MANAGE_MEMBERS', 'VIEW_AUDIT', 'VIEW_ACCESS_HISTORY', 'VIEW_SALON', 'MANAGE_SALON',
     'VIEW_SERVICES', 'MANAGE_SERVICES', 'VIEW_PROFESSIONALS', 'MANAGE_PROFESSIONALS', 'VIEW_AGENDA', 'MANAGE_AGENDA', 'MANAGE_BOOKING_RULES',
+    'VIEW_CUSTOMERS', 'MANAGE_CUSTOMERS', 'MANAGE_MARKETING_CONSENT', 'CUSTOMER_DATA_RIGHTS', 'VIEW_SERVICE_RECORDS', 'MANAGE_SERVICE_RECORDS', 'VOID_SERVICE_RECORDS',
   ];
 
   it('owner sees everything', () => {
-    expect(labels(owner)).toEqual(['Início', 'Agenda', 'Serviços', 'Profissionais', 'Salão', 'Equipe', 'Acessos', 'Perfil']);
+    expect(labels(owner)).toEqual(['Início', 'Agenda', 'Clientes', 'Serviços', 'Profissionais', 'Salão', 'Equipe', 'Acessos', 'Perfil']);
   });
 
   it('manager sees the catalog and the team but not the access history', () => {
@@ -78,11 +79,12 @@ describe('menuFor', () => {
   });
 
   it('professional sees neither team management nor the audit log', () => {
-    expect(labels(['VIEW_SALON', 'VIEW_SERVICES', 'VIEW_PROFESSIONALS', 'VIEW_AGENDA', 'MANAGE_AGENDA'])).toEqual(['Início', 'Agenda', 'Serviços', 'Profissionais', 'Salão', 'Perfil']);
+    expect(labels(['VIEW_SALON', 'VIEW_SERVICES', 'VIEW_PROFESSIONALS', 'VIEW_AGENDA', 'MANAGE_AGENDA', 'VIEW_CUSTOMERS']))
+      .toEqual(['Início', 'Agenda', 'Clientes', 'Serviços', 'Profissionais', 'Salão', 'Perfil']);
   });
 
   it('the phone bottom bar keeps at most the primary items plus "Mais"', () => {
     const bar = bottomBarFor(menuFor(owner)).map((i) => i.label);
-    expect(bar).toEqual(['Início', 'Agenda', 'Serviços', 'Mais']);
+    expect(bar).toEqual(['Início', 'Agenda', 'Clientes', 'Mais']);
   });
 });

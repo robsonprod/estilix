@@ -23,7 +23,7 @@ class ModularityTests {
     @Test
     fun `expected modules exist`() {
         assertThat(modules.map { it.identifier.toString() })
-            .containsExactlyInAnyOrder("shared", "tenancy", "identity", "support", "audit", "privacy", "salon", "onboarding", "scheduling")
+            .containsExactlyInAnyOrder("shared", "tenancy", "identity", "support", "audit", "privacy", "salon", "onboarding", "scheduling", "customers", "servicerecords")
     }
 
     @Test

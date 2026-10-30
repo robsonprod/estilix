@@ -25,7 +25,7 @@ spring:
   data:
     redis:
       host: localhost
-      port: 6380
+      port: ${ESTILIX_REDIS_PORT:6380}
       timeout: 200ms # the rate limiter falls back to memory instead of waiting
       connect-timeout: 500ms
   security:

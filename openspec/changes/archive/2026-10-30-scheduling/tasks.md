@@ -49,7 +49,7 @@
 
 - [x] 9.1 Extend the local seed with bookings for today and tomorrow and one block in both demo salons; verify the demo flows after `./scripts/local.sh down --wipe` and `up`
 - [x] 9.2 Update the README (public booking demo, race behaviour), add ADR `0005-agenda-entries-and-public-tenant-context.md`, and update the study guide PDF (exclusion constraint across bookings and blocks, savepoints, rate limiting with fallback, interview questions); verify commands and diagrams
-- [ ] 9.3 Run `./gradlew check`, frontend lint/test/build and `openspec validate scheduling --strict`; verify everything is green locally and in CI
+- [x] 9.3 Run `./gradlew check`, frontend lint/test/build and `openspec validate scheduling --strict`; verify everything is green locally and in CI
 
 ## Workflow follow-up
 

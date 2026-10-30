@@ -103,3 +103,89 @@ from (values
 ) as v(id, tenant, kind, pro, svc, grp, day_offset, start_min, end_min, customer, phone, origin, reason)
 where not exists (select 1 from agenda_entry e where e.id = v.id::uuid)
 on conflict do nothing;
+
+-- Customers and service records demo (change customers-and-service-records) -----------------------
+-- Customers by phone; "on conflict do nothing" also covers a customer the V8 backfill already created.
+insert into customer (id, tenant_id, phone, name, notes, marketing_consent, consent_changed_at) values
+    ('8a000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '+5585988881111', 'Marina Costa', 'Prefere horários à tarde.', 'GRANTED', now() - interval '60 days'),
+    ('8a000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', '+5585988882222', 'Júlia Ramos', null, 'UNKNOWN', null),
+    ('8a000000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', '+5585988884444', 'Fernanda Lima', 'Alergia a amônia: usar coloração sem amônia.', 'REVOKED', now() - interval '20 days'),
+    ('8a000000-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111', '+5585988885555', 'Carla Mendes', null, 'UNKNOWN', null),
+    ('8b000000-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', '+5585988883333', 'Rafael Dias', null, 'GRANTED', now() - interval '30 days'),
+    ('8b000000-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222', '+5585988886666', 'Pedro Souza', null, 'UNKNOWN', null)
+on conflict do nothing;
+
+insert into customer_consent_event (id, tenant_id, customer_id, consent, source, actor_user_id, occurred_at)
+select v.id::uuid, v.tenant::uuid, c.id, v.consent, 'STAFF', v.actor::uuid, now() - v.days * interval '1 day'
+from (values
+    ('8c000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '+5585988881111', 'GRANTED', 'a0000000-0000-0000-0000-000000000001', 60),
+    ('8c000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', '+5585988884444', 'GRANTED', 'a0000000-0000-0000-0000-000000000002', 90),
+    ('8c000000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', '+5585988884444', 'REVOKED', 'a0000000-0000-0000-0000-000000000002', 20),
+    ('8c000000-0000-0000-0000-000000000004', '22222222-2222-2222-2222-222222222222', '+5585988883333', 'GRANTED', 'a0000000-0000-0000-0000-000000000004', 30)
+) as v(id, tenant, phone, consent, actor, days)
+join customer c on c.tenant_id = v.tenant::uuid and c.phone = v.phone
+on conflict do nothing;
+
+-- Today: Carla did not come (09:00, the time is free again) and Fernanda is being served by Rosa (10:00).
+insert into agenda_entry (id, tenant_id, kind, professional_id, service_id, group_id, starts_at, ends_at, customer_name, customer_phone, origin, status)
+select v.id::uuid, v.tenant::uuid, 'BOOKING', v.pro::uuid, v.svc::uuid, null,
+       (date_trunc('day', now() at time zone 'America/Fortaleza') + v.start_min * interval '1 minute') at time zone 'America/Fortaleza',
+       (date_trunc('day', now() at time zone 'America/Fortaleza') + v.end_min * interval '1 minute') at time zone 'America/Fortaleza',
+       v.customer, v.phone, 'WALK_IN', v.status
+from (values
+    ('7a000000-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111', '9a000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000002', 540, 585, 'Carla Mendes', '+5585988885555', 'NO_SHOW'),
+    ('7a000000-0000-0000-0000-000000000005', '11111111-1111-1111-1111-111111111111', '9a000000-0000-0000-0000-000000000002', '5a000000-0000-0000-0000-000000000004', 600, 645, 'Fernanda Lima', '+5585988884444', 'IN_SERVICE')
+) as v(id, tenant, pro, svc, start_min, end_min, customer, phone, status)
+where not exists (select 1 from agenda_entry e where e.id = v.id::uuid)
+on conflict do nothing;
+
+-- Every demo booking points to its customer.
+update agenda_entry e set customer_id = c.id
+from customer c
+where e.kind = 'BOOKING' and e.customer_id is null and c.tenant_id = e.tenant_id and c.phone = e.customer_phone;
+
+-- Past visits, so "costuma voltar a cada N dias" shows real numbers (closed at 15:00 local, N days ago).
+insert into service_record (id, tenant_id, customer_id, status, payment_method, total_cents, opened_at, closed_at)
+select v.id::uuid, v.tenant::uuid, c.id, 'CLOSED', v.pay, v.cents,
+       (date_trunc('day', now() at time zone 'America/Fortaleza') - v.days * interval '1 day' + interval '14 hours') at time zone 'America/Fortaleza',
+       (date_trunc('day', now() at time zone 'America/Fortaleza') - v.days * interval '1 day' + interval '15 hours') at time zone 'America/Fortaleza'
+from (values
+    ('8d000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '+5585988881111', 95, 'PIX', 8000),
+    ('8d000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', '+5585988881111', 63, 'CREDIT', 11500),
+    ('8d000000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', '+5585988881111', 33, 'PIX', 8000),
+    ('8d000000-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111', '+5585988884444', 70, 'DEBIT', 18000),
+    ('8d000000-0000-0000-0000-000000000005', '11111111-1111-1111-1111-111111111111', '+5585988884444', 21, 'CASH', 3500),
+    ('8d000000-0000-0000-0000-000000000006', '22222222-2222-2222-2222-222222222222', '+5585988883333', 42, 'PIX', 4500),
+    ('8d000000-0000-0000-0000-000000000007', '22222222-2222-2222-2222-222222222222', '+5585988883333', 28, 'PIX', 4500),
+    ('8d000000-0000-0000-0000-000000000008', '22222222-2222-2222-2222-222222222222', '+5585988883333', 14, 'CASH', 4500)
+) as v(id, tenant, phone, days, pay, cents)
+join customer c on c.tenant_id = v.tenant::uuid and c.phone = v.phone
+on conflict do nothing;
+
+-- Fernanda's open comanda for today's manicure.
+insert into service_record (id, tenant_id, customer_id, status, total_cents, opened_at)
+select '8d000000-0000-0000-0000-000000000009', '11111111-1111-1111-1111-111111111111', c.id, 'OPEN', 3500, now()
+from customer c
+where c.tenant_id = '11111111-1111-1111-1111-111111111111' and c.phone = '+5585988884444'
+  and not exists (select 1 from service_record r where r.customer_id = c.id and r.status = 'OPEN')
+  -- only when today's booking could be placed (an older local database may already use that time)
+  and exists (select 1 from agenda_entry e where e.id = '7a000000-0000-0000-0000-000000000005' and e.status = 'IN_SERVICE')
+on conflict do nothing;
+
+insert into service_record_item (id, tenant_id, record_id, service_id, professional_id, price_cents, agenda_entry_id)
+select v.id::uuid, v.tenant::uuid, v.rec::uuid, v.svc::uuid, v.pro::uuid, v.cents, v.entry::uuid
+from (values
+    ('8e000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '8d000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001', '9a000000-0000-0000-0000-000000000001', 8000, null),
+    ('8e000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', '8d000000-0000-0000-0000-000000000002', '5a000000-0000-0000-0000-000000000001', '9a000000-0000-0000-0000-000000000001', 8000, null),
+    ('8e000000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', '8d000000-0000-0000-0000-000000000002', '5a000000-0000-0000-0000-000000000004', '9a000000-0000-0000-0000-000000000002', 3500, null),
+    ('8e000000-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111', '8d000000-0000-0000-0000-000000000003', '5a000000-0000-0000-0000-000000000001', '9a000000-0000-0000-0000-000000000001', 8000, null),
+    ('8e000000-0000-0000-0000-000000000005', '11111111-1111-1111-1111-111111111111', '8d000000-0000-0000-0000-000000000004', '5a000000-0000-0000-0000-000000000003', '9a000000-0000-0000-0000-000000000001', 18000, null),
+    ('8e000000-0000-0000-0000-000000000006', '11111111-1111-1111-1111-111111111111', '8d000000-0000-0000-0000-000000000005', '5a000000-0000-0000-0000-000000000004', '9a000000-0000-0000-0000-000000000002', 3500, null),
+    ('8e000000-0000-0000-0000-000000000007', '22222222-2222-2222-2222-222222222222', '8d000000-0000-0000-0000-000000000006', '5b000000-0000-0000-0000-000000000001', '9b000000-0000-0000-0000-000000000001', 4500, null),
+    ('8e000000-0000-0000-0000-000000000008', '22222222-2222-2222-2222-222222222222', '8d000000-0000-0000-0000-000000000007', '5b000000-0000-0000-0000-000000000001', '9b000000-0000-0000-0000-000000000001', 4500, null),
+    ('8e000000-0000-0000-0000-000000000009', '22222222-2222-2222-2222-222222222222', '8d000000-0000-0000-0000-000000000008', '5b000000-0000-0000-0000-000000000001', '9b000000-0000-0000-0000-000000000001', 4500, null),
+    ('8e000000-0000-0000-0000-000000000010', '11111111-1111-1111-1111-111111111111', '8d000000-0000-0000-0000-000000000009', '5a000000-0000-0000-0000-000000000004', '9a000000-0000-0000-0000-000000000002', 3500, '7a000000-0000-0000-0000-000000000005')
+) as v(id, tenant, rec, svc, pro, cents, entry)
+where exists (select 1 from service_record r where r.id = v.rec::uuid)
+  and (v.entry is null or exists (select 1 from agenda_entry e where e.id = v.entry::uuid))
+on conflict do nothing;

@@ -14,7 +14,7 @@ export const FEATURES: Feature[] = [
   { title: 'Serviços e profissionais', text: 'Duração, preço fixo ou "a partir de", quem faz o quê e em que horário.', icon: 'scissors', status: 'available' },
   { title: 'Dados protegidos (LGPD)', text: 'Cada salão isolado no banco. O suporte só vê dados reais com registro e aviso para você.', icon: 'lock', status: 'available' },
   { title: 'Agenda online sem ligação', text: 'Sua cliente marca pelo link do salão, a qualquer hora, e recebe um código para remarcar.', icon: 'calendar', status: 'available' },
-  { title: 'Atendimento em 3 toques', text: '“Ana · Corte · R$ 80 · Pix” — e o histórico fica salvo.', icon: 'check', status: 'soon' },
+  { title: 'Atendimento em 3 toques', text: '“Ana · Corte · R$ 80 · Pix” — e o histórico fica salvo.', icon: 'check', status: 'available' },
   { title: 'Caixa e comissões', text: 'Entradas, despesas, fechamento do dia e comissão de cada profissional.', icon: 'cash', status: 'soon' },
   { title: 'Clientes para chamar', text: 'Quem passou do tempo de voltar, com mensagem pronta para o WhatsApp.', icon: 'phone', status: 'soon' },
 ];
@@ -37,10 +37,11 @@ export const FALLBACK_PLAN = {
   features: [
     'Agenda online sem ligação',
     'Agenda da equipe com bloqueios',
+    'Atendimento em 3 toques',
+    'Clientes com histórico',
     'Equipe ilimitada com papéis',
     'Serviços, profissionais e horários',
     'Dados protegidos (LGPD)',
-    'Atendimentos em 3 toques (em breve)',
     'Caixa e comissões (em breve)',
     'Clientes para chamar (em breve)',
   ],

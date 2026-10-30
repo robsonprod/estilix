@@ -2,20 +2,24 @@ import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } 
 import { DecimalPipe, KeyValuePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
-import { AgendaColumn, AgendaDay, AgendaItem, Problem, Professional, ServiceItem } from '../../core/models';
+import { CustomersApi } from '../../core/customers-api.service';
+import { AgendaColumn, AgendaDay, AgendaItem, BOOKING_STATUS_LABEL, Problem, Professional, ServiceItem, ServiceRecord } from '../../core/models';
 import { isoDate, longDate, SchedulingApi } from '../../core/scheduling-api.service';
 import { SessionService } from '../../core/session.service';
-import { dayRange, isFree, itemLabel, PX_PER_MINUTE, shiftDate, timeAt, toMinutes } from './agenda-model';
+import { RecordSheet } from '../records/record-sheet';
+import { dayRange, hasStarted, isFree, itemLabel, PX_PER_MINUTE, shiftDate, timeAt, toMinutes } from './agenda-model';
 
 type Panel =
   | { kind: 'book'; professionalId: string; date: string; time: string | null; serviceId: string | null; name: string; phone: string; times: string[] }
   | { kind: 'item'; column: AgendaColumn; item: AgendaItem; moveDate: string; moveTime: string | null; moveProfessionalId: string; times: string[] }
-  | { kind: 'block'; professionalId: string; date: string; start: string; end: string; reason: string };
+  | { kind: 'block'; professionalId: string; date: string; start: string; end: string; reason: string }
+  | { kind: 'walkin'; phone: string; name: string; knownName: string | null; serviceId: string | null; professionalId: string }
+  | { kind: 'record'; record: ServiceRecord };
 
 /** "Agenda" (spec scheduling/staff-agenda): the day per professional, booking, moving, cancelling and blocking. */
 @Component({
   selector: 'app-agenda',
-  imports: [FormsModule, DecimalPipe, KeyValuePipe],
+  imports: [FormsModule, DecimalPipe, KeyValuePipe, RecordSheet],
   templateUrl: './agenda.page.html',
   styleUrl: './agenda.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -24,6 +28,7 @@ export class AgendaPage implements OnInit {
   private readonly scheduling = inject(SchedulingApi);
   private readonly api = inject(ApiService);
   private readonly session = inject(SessionService);
+  private readonly records = inject(CustomersApi);
 
   protected readonly longDate = longDate;
   protected readonly itemLabel = itemLabel;
@@ -39,7 +44,15 @@ export class AgendaPage implements OnInit {
   protected readonly notice = signal<string | null>(null);
   protected readonly busy = signal(false);
 
+  protected readonly statusLabel = BOOKING_STATUS_LABEL;
   protected readonly canManage = computed(() => this.session.permissions().includes('MANAGE_AGENDA'));
+  protected readonly canRecord = computed(() => this.session.permissions().includes('MANAGE_SERVICE_RECORDS'));
+  protected readonly canViewRecords = computed(() => this.session.permissions().includes('VIEW_SERVICE_RECORDS'));
+  protected readonly isToday = computed(() => this.date() === isoDate(new Date()));
+  /** A PROFESSIONAL only sees their own column: that is the professional they act as. */
+  protected readonly ownProfessionalId = computed(() =>
+    this.session.currentTenant?.()?.role === 'PROFESSIONAL' ? (this.columns()[0]?.professionalId ?? null) : null,
+  );
   protected readonly columns = computed(() => this.day()?.professionals ?? []);
   protected readonly range = computed(() => dayRange(this.columns()));
   protected readonly hours = computed(() => {
@@ -160,6 +173,80 @@ export class AgendaPage implements OnInit {
       this.notice.set('Agendamento remarcado.');
       await this.load();
     });
+  }
+
+  // Attendance (change customers-and-service-records) ---------------------------------------------
+
+  protected started(item: AgendaItem): boolean {
+    return hasStarted(this.date(), item.start, new Date());
+  }
+
+  /** "Iniciar atendimento": the booking becomes "Em atendimento" and the comanda opens, prices filled in. */
+  protected startService(): Promise<void> {
+    const p = this.panel();
+    if (p?.kind !== 'item') return Promise.resolve();
+    return this.run(async () => {
+      const record = await this.records.startFromBooking(this.tenantId, p.item.id);
+      this.panel.set({ kind: 'record', record });
+      await this.load();
+    });
+  }
+
+  protected openRecord(): Promise<void> {
+    const p = this.panel();
+    if (p?.kind !== 'item') return Promise.resolve();
+    return this.run(async () => this.panel.set({ kind: 'record', record: await this.records.recordOfEntry(this.tenantId, p.item.id) }));
+  }
+
+  protected noShow(): Promise<void> {
+    const p = this.panel();
+    if (p?.kind !== 'item' || !confirm('Marcar que a cliente não veio? O horário fica livre de novo.')) return Promise.resolve();
+    return this.run(async () => {
+      await this.scheduling.noShow(this.tenantId, p.item.id);
+      this.panel.set(null);
+      this.notice.set('Marcado como "não veio". O horário está livre.');
+      await this.load();
+    });
+  }
+
+  protected openWalkIn(): void {
+    const professionalId = this.ownProfessionalId() ?? this.focusedId() ?? this.pros().find((p) => p.active)?.id;
+    if (!professionalId) return;
+    this.panel.set({ kind: 'walkin', phone: '', name: '', knownName: null, serviceId: this.servicesOf(professionalId)[0]?.id ?? null, professionalId });
+  }
+
+  /** Known phone: the name appears and is not asked again (spec "Known phone fills the name"). */
+  protected async lookupPhone(): Promise<void> {
+    const p = this.panel();
+    if (p?.kind !== 'walkin') return;
+    if (p.phone.replace(/\D/g, '').length < 10) {
+      this.patch({ knownName: null });
+      return;
+    }
+    try {
+      const known = await this.records.lookup(this.tenantId, p.phone);
+      this.patch({ knownName: known.name });
+    } catch {
+      this.patch({ knownName: null });
+    }
+  }
+
+  protected startWalkIn(): Promise<void> {
+    const p = this.panel();
+    if (p?.kind !== 'walkin' || !p.serviceId) return Promise.resolve();
+    return this.run(async () => {
+      const record = await this.records.walkIn(this.tenantId, {
+        phone: p.phone.trim(), name: p.knownName ? null : p.name.trim(), serviceId: p.serviceId!, professionalId: p.professionalId,
+      });
+      this.panel.set({ kind: 'record', record });
+      await this.load();
+    });
+  }
+
+  protected async recordChanged(record: ServiceRecord): Promise<void> {
+    this.panel.set({ kind: 'record', record });
+    if (record.status === 'CLOSED') this.notice.set('Atendimento concluído.');
+    await this.run(() => this.load());
   }
 
   protected removeBlock(): Promise<void> {

@@ -53,6 +53,7 @@ data class AgendaItem(
     val origin: Origin?,
     val blockReason: String?,
     val cancelledBy: CancelledBy?,
+    val customerId: UUID?,
 )
 
 data class AgendaColumn(val professionalId: UUID, val displayName: PersonName, val color: String, val hours: List<HoursInterval>, val items: List<AgendaItem>)
@@ -152,6 +153,25 @@ class StaffAgendaService(
         }!!
     }
 
+    /** Spec bookings "No-show frees the time": only after the start, only from CONFIRMED. */
+    fun noShow(id: UUID): AgendaItem {
+        val entry = existing(id)
+        if (entry.kind != EntryKind.BOOKING) throw NotFoundException("Agendamento não encontrado")
+        requireAccess(entry.professionalId)
+        return tx.execute {
+            if (entry.status != EntryStatus.CONFIRMED) {
+                throw DomainException(ProblemType.VALIDATION, "Só agendamentos confirmados podem ser marcados como \"não veio\"", mapOf("status" to entry.status.name))
+            }
+            if (clock.instant().isBefore(entry.startsAt)) {
+                throw DomainException(ProblemType.VALIDATION, "Ainda não chegou a hora deste agendamento", mapOf("status" to "antes do horário"))
+            }
+            if (agenda.transition(id, EntryStatus.CONFIRMED, EntryStatus.NO_SHOW) == 0) {
+                throw DomainException(ProblemType.VALIDATION, "Este agendamento acabou de mudar. Atualize a agenda.")
+            }
+            item(agenda.entry(id)!!, bookings.snapshot().zone)
+        }!!
+    }
+
     fun reschedule(id: UUID, request: RescheduleRequest): AgendaItem {
         val entry = existing(id)
         requireAccess(entry.professionalId)
@@ -209,7 +229,7 @@ class StaffAgendaService(
 
     private fun item(e: AgendaEntry, zone: ZoneId) = AgendaItem(
         e.id, e.kind, BookingService.localTime(e.startsAt, zone), BookingService.localTime(e.endsAt, zone), e.status,
-        e.serviceName, e.customerName, e.customerPhone, e.origin, e.blockReason, e.cancelledBy,
+        e.serviceName, e.customerName, e.customerPhone, e.origin, e.blockReason, e.cancelledBy, e.customerId,
     )
 }
 
@@ -242,6 +262,10 @@ class StaffAgendaController(private val service: StaffAgendaService) {
     @PostMapping("/agenda/bookings/{id}/cancel")
     @PreAuthorize("@access.can('MANAGE_AGENDA')")
     fun cancel(@PathVariable tenantId: UUID, @PathVariable id: UUID): AgendaItem = service.cancel(id)
+
+    @PostMapping("/agenda/bookings/{id}/no-show")
+    @PreAuthorize("@access.can('MANAGE_AGENDA')")
+    fun noShow(@PathVariable tenantId: UUID, @PathVariable id: UUID): AgendaItem = service.noShow(id)
 
     @PostMapping("/agenda/bookings/{id}/reschedule")
     @PreAuthorize("@access.can('MANAGE_AGENDA')")

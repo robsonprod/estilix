@@ -72,6 +72,11 @@ export class SchedulingApi {
     return this.call(this.http.post<AgendaItem>(`/api/v1/tenants/${tenantId}/agenda/bookings/${id}/cancel`, {}));
   }
 
+  /** "Não veio": only after the booking's start (spec bookings "No-show frees the time"). */
+  noShow(tenantId: string, id: string): Promise<AgendaItem> {
+    return this.call(this.http.post<AgendaItem>(`/api/v1/tenants/${tenantId}/agenda/bookings/${id}/no-show`, {}));
+  }
+
   staffReschedule(tenantId: string, id: string, date: string, time: string, professionalId: string | null): Promise<AgendaItem> {
     return this.call(this.http.post<AgendaItem>(`/api/v1/tenants/${tenantId}/agenda/bookings/${id}/reschedule`, { date, time, professionalId }));
   }

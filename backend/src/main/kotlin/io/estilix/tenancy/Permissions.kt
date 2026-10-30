@@ -17,6 +17,13 @@ enum class Permission {
     VIEW_AGENDA,
     MANAGE_AGENDA,
     MANAGE_BOOKING_RULES,
+    VIEW_CUSTOMERS,
+    MANAGE_CUSTOMERS,
+    MANAGE_MARKETING_CONSENT,
+    CUSTOMER_DATA_RIGHTS,
+    VIEW_SERVICE_RECORDS,
+    MANAGE_SERVICE_RECORDS,
+    VOID_SERVICE_RECORDS,
 }
 
 /**
@@ -37,6 +44,12 @@ object PermissionCatalog {
             Permission.MANAGE_PROFESSIONALS,
             Permission.VIEW_AGENDA,
             Permission.MANAGE_AGENDA,
+            Permission.VIEW_CUSTOMERS,
+            Permission.MANAGE_CUSTOMERS,
+            Permission.MANAGE_MARKETING_CONSENT,
+            Permission.VIEW_SERVICE_RECORDS,
+            Permission.MANAGE_SERVICE_RECORDS,
+            Permission.VOID_SERVICE_RECORDS,
         ),
         // A professional manages only their own agenda; the scheduling module narrows it further.
         TenantRole.PROFESSIONAL to setOf(
@@ -45,6 +58,11 @@ object PermissionCatalog {
             Permission.VIEW_PROFESSIONALS,
             Permission.VIEW_AGENDA,
             Permission.MANAGE_AGENDA,
+            // Narrowed to the customers and records of their own professional (design D7).
+            Permission.VIEW_CUSTOMERS,
+            Permission.MANAGE_CUSTOMERS,
+            Permission.VIEW_SERVICE_RECORDS,
+            Permission.MANAGE_SERVICE_RECORDS,
         ),
     )
 
@@ -57,6 +75,8 @@ object PermissionCatalog {
         Permission.VIEW_SERVICES,
         Permission.VIEW_PROFESSIONALS,
         Permission.VIEW_AGENDA,
+        Permission.VIEW_CUSTOMERS,
+        Permission.VIEW_SERVICE_RECORDS,
     )
 
     fun of(role: TenantRole): Set<Permission> = byRole.getValue(role)

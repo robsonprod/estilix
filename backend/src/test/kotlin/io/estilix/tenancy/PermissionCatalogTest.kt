@@ -19,10 +19,20 @@ class PermissionCatalogTest {
     }
 
     @Test
-    fun `professional reads the catalog and works on the agenda`() {
+    fun `professional reads the catalog and works on the agenda, their customers and records`() {
         assertThat(PermissionCatalog.of(TenantRole.PROFESSIONAL)).containsExactlyInAnyOrder(
             Permission.VIEW_SALON, Permission.VIEW_SERVICES, Permission.VIEW_PROFESSIONALS, Permission.VIEW_AGENDA, Permission.MANAGE_AGENDA,
+            Permission.VIEW_CUSTOMERS, Permission.MANAGE_CUSTOMERS, Permission.VIEW_SERVICE_RECORDS, Permission.MANAGE_SERVICE_RECORDS,
         )
+    }
+
+    @Test
+    fun `only owners answer data-subject requests, professionals neither change consent nor void records`() {
+        assertThat(PermissionCatalog.of(TenantRole.OWNER)).contains(Permission.CUSTOMER_DATA_RIGHTS)
+        assertThat(PermissionCatalog.of(TenantRole.MANAGER)).doesNotContain(Permission.CUSTOMER_DATA_RIGHTS)
+            .contains(Permission.MANAGE_MARKETING_CONSENT, Permission.VOID_SERVICE_RECORDS)
+        assertThat(PermissionCatalog.of(TenantRole.PROFESSIONAL))
+            .doesNotContain(Permission.CUSTOMER_DATA_RIGHTS, Permission.MANAGE_MARKETING_CONSENT, Permission.VOID_SERVICE_RECORDS)
     }
 
     @Test
@@ -34,7 +44,7 @@ class PermissionCatalogTest {
     @Test
     fun `support only reads`() {
         val support = PermissionCatalog.of(RequestContext(support = true))
-        assertThat(support).doesNotContain(Permission.MANAGE_MEMBERS, Permission.MANAGE_SALON, Permission.MANAGE_SERVICES, Permission.MANAGE_PROFESSIONALS, Permission.MANAGE_AGENDA)
+        assertThat(support).doesNotContain(Permission.MANAGE_MEMBERS, Permission.MANAGE_SALON, Permission.MANAGE_SERVICES, Permission.MANAGE_PROFESSIONALS, Permission.MANAGE_AGENDA, Permission.MANAGE_CUSTOMERS, Permission.MANAGE_SERVICE_RECORDS, Permission.CUSTOMER_DATA_RIGHTS)
         assertThat(support).contains(Permission.VIEW_MEMBERS, Permission.VIEW_AUDIT, Permission.VIEW_ACCESS_HISTORY)
     }
 

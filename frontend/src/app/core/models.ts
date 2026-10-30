@@ -14,7 +14,14 @@ export type Permission =
   | 'MANAGE_PROFESSIONALS'
   | 'VIEW_AGENDA'
   | 'MANAGE_AGENDA'
-  | 'MANAGE_BOOKING_RULES';
+  | 'MANAGE_BOOKING_RULES'
+  | 'VIEW_CUSTOMERS'
+  | 'MANAGE_CUSTOMERS'
+  | 'MANAGE_MARKETING_CONSENT'
+  | 'CUSTOMER_DATA_RIGHTS'
+  | 'VIEW_SERVICE_RECORDS'
+  | 'MANAGE_SERVICE_RECORDS'
+  | 'VOID_SERVICE_RECORDS';
 export type EstablishmentType = 'SALON' | 'BARBERSHOP';
 export type TenantStatus = 'PENDING_APPROVAL' | 'REJECTED' | 'ACTIVE' | 'SUSPENDED';
 
@@ -277,7 +284,7 @@ export interface PublicBookingItem {
   date: string;
   start: string;
   end: string;
-  status: 'CONFIRMED' | 'CANCELLED';
+  status: BookingStatus;
   canChange: boolean;
 }
 
@@ -297,18 +304,30 @@ export interface BookingRules {
   cancelNoticeMinutes: number;
 }
 
+/** CONFIRMED, IN_SERVICE and DONE hold the time; NO_SHOW and CANCELLED free it (change customers-and-service-records). */
+export type BookingStatus = 'CONFIRMED' | 'IN_SERVICE' | 'DONE' | 'NO_SHOW' | 'CANCELLED';
+
+export const BOOKING_STATUS_LABEL: Record<BookingStatus, string> = {
+  CONFIRMED: 'Confirmado',
+  IN_SERVICE: 'Em atendimento',
+  DONE: 'Concluído',
+  NO_SHOW: 'Não veio',
+  CANCELLED: 'Cancelado',
+};
+
 export interface AgendaItem {
   id: string;
   kind: 'BOOKING' | 'BLOCK';
   start: string;
   end: string;
-  status: 'CONFIRMED' | 'CANCELLED';
+  status: BookingStatus;
   serviceName: string | null;
   customerName: string | null;
   customerPhone: string | null;
-  origin: 'PUBLIC' | 'STAFF' | null;
+  origin: 'PUBLIC' | 'STAFF' | 'WALK_IN' | null;
   blockReason: string | null;
   cancelledBy: 'CUSTOMER' | 'STAFF' | null;
+  customerId?: string | null;
 }
 
 export interface AgendaColumn {
@@ -324,4 +343,99 @@ export interface AgendaDay {
   timeZone: string;
   professionals: AgendaColumn[];
   linkedProfessionalMissing: boolean;
+}
+
+// Customers and service records (change customers-and-service-records) ---------------------------
+
+export type MarketingConsent = 'UNKNOWN' | 'GRANTED' | 'REVOKED';
+
+export interface CustomerRef {
+  id: string;
+  name: string;
+  phone: string | null;
+}
+
+export interface CustomerSummary {
+  id: string;
+  name: string;
+  phone: string | null;
+  visits: number;
+  totalSpent: string;
+  lastVisit: string | null;
+  anonymised: boolean;
+}
+
+export interface CustomerPage {
+  items: CustomerSummary[];
+  page: number;
+  hasMore: boolean;
+}
+
+export type PaymentMethod = 'PIX' | 'CASH' | 'DEBIT' | 'CREDIT';
+
+export const PAYMENT_LABEL: Record<PaymentMethod, string> = { PIX: 'Pix', CASH: 'Dinheiro', DEBIT: 'Débito', CREDIT: 'Crédito' };
+
+export interface Visit {
+  recordId: string;
+  closedAt: string;
+  total: string;
+  paymentMethod: PaymentMethod;
+  items: { serviceName: string; professionalName: string; price: string }[];
+}
+
+export interface ConsentEvent {
+  consent: MarketingConsent;
+  source: 'STAFF' | 'CUSTOMER';
+  actorUserId: string | null;
+  occurredAt: string;
+}
+
+export interface CustomerDetail {
+  id: string;
+  name: string;
+  phone: string | null;
+  notes: string | null;
+  marketingConsent: MarketingConsent;
+  consentChangedAt: string | null;
+  consentHistory: ConsentEvent[];
+  visits: number;
+  noShows: number;
+  totalSpent: string;
+  lastVisit: string | null;
+  usualIntervalDays: number | null;
+  history: Visit[];
+  anonymised: boolean;
+}
+
+export type RecordStatus = 'OPEN' | 'CLOSED' | 'VOIDED';
+
+export interface RecordItem {
+  id: string;
+  serviceId: string;
+  serviceName: string;
+  professionalId: string;
+  professionalName: string;
+  price: string;
+  fromBooking: boolean;
+  agendaEntryId: string | null;
+}
+
+export interface ServiceRecord {
+  id: string;
+  customerId: string;
+  customerName: string;
+  customerPhone: string | null;
+  status: RecordStatus;
+  paymentMethod: PaymentMethod | null;
+  total: string;
+  openedAt: string;
+  closedAt: string | null;
+  voidedAt: string | null;
+  items: RecordItem[];
+}
+
+export interface DayRecords {
+  date: string;
+  records: ServiceRecord[];
+  total: string;
 }

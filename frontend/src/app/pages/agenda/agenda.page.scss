@@ -29,3 +29,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
   .phone-only { display: none; }
   .board { grid-template-columns: 44px repeat(var(--cols, 1), minmax(160px, 1fr)); }
 }
+.item.in-service { background: var(--warn-soft); }
+.item.done { background: var(--ok-soft); }
+.item .st { font-weight: 600; font-size: .75rem; }
+.big { min-height: 52px; font-size: 1.05rem; }

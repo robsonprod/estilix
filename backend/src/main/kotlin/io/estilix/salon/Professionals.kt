@@ -258,3 +258,23 @@ class ProfessionalsController(private val service: ProfessionalService) {
     fun replaceHours(@PathVariable tenantId: UUID, @PathVariable id: UUID, @RequestBody request: HoursRequest): ProfessionalHours =
         service.replaceHours(id, request)
 }
+
+/**
+ * Which professional the caller may act for (spec staff-agenda "Who sees and manages which agenda").
+ * [restricted] is false for owners, managers and support; a restricted caller with a null
+ * [professionalId] is a PROFESSIONAL not linked to any professional yet, who sees nothing.
+ */
+data class ProfessionalScope(val restricted: Boolean, val professionalId: java.util.UUID?) {
+    fun allows(professional: java.util.UUID): Boolean = !restricted || professional == professionalId
+}
+
+@org.springframework.stereotype.Component
+class ProfessionalScopes(private val professionals: ProfessionalRepository) {
+
+    /** Must run inside a tenant transaction (the lookup is subject to RLS). */
+    fun current(): ProfessionalScope {
+        val ctx = io.estilix.tenancy.TenantContext.current()
+        if (ctx.role != io.estilix.tenancy.TenantRole.PROFESSIONAL) return ProfessionalScope(false, null)
+        return ProfessionalScope(true, professionals.findByUser(ctx.userId!!)?.id)
+    }
+}

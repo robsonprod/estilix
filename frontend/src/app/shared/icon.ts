@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 export type IconName =
   | 'home' | 'team' | 'shield' | 'user' | 'switch' | 'logout' | 'alert'
-  | 'store' | 'scissors' | 'people' | 'more' | 'check' | 'calendar' | 'cash' | 'phone' | 'lock';
+  | 'store' | 'scissors' | 'people' | 'more' | 'check' | 'calendar' | 'cash' | 'phone' | 'lock' | 'heart';
 
 const PATHS: Record<IconName, string> = {
   home: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
@@ -21,6 +21,7 @@ const PATHS: Record<IconName, string> = {
   cash: 'M3 7h18v10H3zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM6 10v4M18 10v4',
   phone: 'M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2',
   lock: 'M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4',
+  heart: 'M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z',
 };
 
 @Component({

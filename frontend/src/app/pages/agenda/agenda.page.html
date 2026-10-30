@@ -2,13 +2,14 @@
   <div class="row wrap toolbar">
     <h1>Agenda</h1>
     <span class="spacer"></span>
+    @if (canRecord()) { <button type="button" class="btn" (click)="openWalkIn()">Novo atendimento</button> }
     <button type="button" class="btn secondary" (click)="go(-1)" aria-label="Dia anterior">‹</button>
     <button type="button" class="btn secondary" (click)="go('today')">Hoje</button>
     <button type="button" class="btn secondary" (click)="go(1)" aria-label="Próximo dia">›</button>
   </div>
   <p class="muted">{{ longDate(date()) }}</p>
 
-  @if (error(); as e) { <div class="alert" [class.warn]="e.code === 'slot-taken'" [class.error]="e.code !== 'slot-taken'" role="alert">{{ e.detail }}</div> }
+  @if (error(); as e) { @if (panel()?.kind !== 'walkin') { <div class="alert" [class.warn]="e.code === 'slot-taken'" [class.error]="e.code !== 'slot-taken'" role="alert">{{ e.detail }}</div> } }
   @if (notice()) { <div class="alert ok" role="status">{{ notice() }}</div> }
   @if (day()?.linkedProfessionalMissing) {
     <div class="alert warn">Sua conta ainda não está ligada a um profissional da agenda. Peça ao dono do salão para fazer essa ligação em Profissionais.</div>
@@ -54,9 +55,22 @@
             <strong>{{ p.item.serviceName }} · {{ p.item.start }}–{{ p.item.end }}</strong>
             <div>{{ p.item.customerName }} · <a [href]="'tel:' + p.item.customerPhone">{{ p.item.customerPhone }}</a></div>
             <div class="muted small">
-              {{ p.item.origin === 'PUBLIC' ? 'Agendado pelo link' : 'Agendado pela equipe' }}
-              {{ p.item.status === 'CANCELLED' ? ' · cancelado pela ' + (p.item.cancelledBy === 'CUSTOMER' ? 'cliente' : 'equipe') : '' }}
+              {{ p.item.origin === 'PUBLIC' ? 'Agendado pelo link' : p.item.origin === 'WALK_IN' ? 'Atendimento sem agendamento' : 'Agendado pela equipe' }}
+              · <span class="badge" [class.ok]="p.item.status === 'DONE'" [class.warn]="p.item.status === 'IN_SERVICE'"
+                [class.neutral]="p.item.status === 'CANCELLED' || p.item.status === 'NO_SHOW'">{{ statusLabel[p.item.status] }}</span>
+              {{ p.item.status === 'CANCELLED' ? ' pela ' + (p.item.cancelledBy === 'CUSTOMER' ? 'cliente' : 'equipe') : '' }}
             </div>
+            @if (p.item.status === 'CONFIRMED' && canRecord() && isToday()) {
+              <button type="button" class="btn big" (click)="startService()" [disabled]="busy()">Iniciar atendimento</button>
+            }
+            @if ((p.item.status === 'IN_SERVICE' || p.item.status === 'DONE') && canViewRecords()) {
+              <button type="button" class="btn secondary" (click)="openRecord()" [disabled]="busy()">
+                {{ p.item.status === 'IN_SERVICE' ? 'Abrir comanda' : 'Ver comanda' }}
+              </button>
+            }
+            @if (p.item.status === 'CONFIRMED' && canManage() && started(p.item)) {
+              <button type="button" class="btn secondary" (click)="noShow()" [disabled]="busy()">Não veio</button>
+            }
             @if (p.item.status === 'CONFIRMED' && canManage()) {
               <details>
                 <summary>Remarcar</summary>
@@ -87,6 +101,46 @@
             @if (canManage()) { <button type="button" class="btn danger" (click)="removeBlock()">Remover bloqueio</button> }
           }
           <button type="button" class="btn ghost" (click)="panel.set(null)">Fechar</button>
+        }
+        @case ('walkin') {
+          <strong>Novo atendimento</strong>
+          <p class="muted small">Cliente sem agendamento. Começa agora e ocupa a agenda do profissional.</p>
+          <label>Celular da cliente
+            <input [ngModel]="p.phone" (ngModelChange)="patch({ phone: $event }); lookupPhone()"
+              inputmode="tel" placeholder="(85) 99876-5432" autocomplete="off" />
+          </label>
+          @if (p.knownName) {
+            <div class="alert ok" role="status">Cliente: <strong>{{ p.knownName }}</strong></div>
+          } @else {
+            <label>Nome da cliente <input [ngModel]="p.name" (ngModelChange)="patch({ name: $event })" maxlength="80" /></label>
+          }
+          <div class="row two">
+            <label>Profissional
+              <select [ngModel]="p.professionalId" (ngModelChange)="patch({ professionalId: $event, serviceId: servicesOf($event)[0]?.id ?? null })"
+                [disabled]="ownProfessionalId() !== null">
+                @for (c of columns(); track c.professionalId) { <option [value]="c.professionalId">{{ c.displayName }}</option> }
+              </select>
+            </label>
+            <label>Serviço
+              <select [ngModel]="p.serviceId" (ngModelChange)="patch({ serviceId: $event })">
+                @for (s of servicesOf(p.professionalId); track s.id) { <option [value]="s.id">{{ s.name }} · {{ s.priceLabel }}</option> }
+              </select>
+            </label>
+          </div>
+          @if (error(); as e) {
+            <div class="alert" [class.warn]="e.code === 'slot-taken'" [class.error]="e.code !== 'slot-taken'" role="alert">{{ e.detail }}</div>
+            @if (e.errors; as errs) { @for (f of errs | keyvalue; track f.key) { <span class="field-error">{{ f.value }}</span> } }
+          }
+          <div class="row">
+            <button type="button" class="btn ghost" (click)="panel.set(null)">Fechar</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn" (click)="startWalkIn()"
+              [disabled]="busy() || !p.serviceId || (!p.knownName && p.name.trim().length < 2)">Iniciar</button>
+          </div>
+        }
+        @case ('record') {
+          <app-record-sheet [record]="p.record" [services]="services()" [pros]="pros()" [ownProfessionalId]="ownProfessionalId()"
+            (changed)="recordChanged($event)" (dismissed)="panel.set(null)" />
         }
         @case ('block') {
           <strong>Bloquear horário</strong>
@@ -126,9 +180,11 @@
           [attr.aria-label]="'Agenda de ' + c.displayName">
           @for (h of inHours(c); track $index) { <div class="open" [style.top.px]="h.top" [style.height.px]="h.height"></div> }
           @for (i of c.items; track i.id) {
-            <button type="button" class="item" [class.block]="i.kind === 'BLOCK'" [class.cancelled]="i.status === 'CANCELLED'"
+            <button type="button" class="item" [class.block]="i.kind === 'BLOCK'" [class.cancelled]="i.status === 'CANCELLED' || i.status === 'NO_SHOW'"
+              [class.in-service]="i.status === 'IN_SERVICE'" [class.done]="i.status === 'DONE'"
               [style.top.px]="top(i.start)" [style.height.px]="height(i)" [style.borderColor]="c.color" (click)="openItem(c, i)">
               <span class="t">{{ i.start }}</span> {{ itemLabel(i) }}
+              @if (i.kind === 'BOOKING' && i.status !== 'CONFIRMED') { <span class="st">· {{ statusLabel[i.status] }}</span> }
             </button>
           }
         </div>

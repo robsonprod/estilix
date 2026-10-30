@@ -1,5 +1,6 @@
 package io.estilix.scheduling
 
+import io.estilix.privacy.Phones
 import io.estilix.salon.HoursInterval
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
@@ -139,5 +140,14 @@ class SchedulingRulesTest {
             assertThat(Availability.inWindow(tuesday.plusDays(31), zone, now, BookingRules())).isFalse()
             assertThat(Availability.inWindow(tuesday.minusDays(1), zone, now, BookingRules())).isFalse()
         }
+    }
+
+    @Test
+    fun `closing early rounds the freed time up to the next quarter hour`() {
+        fun at(t: String) = java.time.Instant.parse("2026-11-03T${t}Z")
+        assertThat(BookingLifecycle.ceilToQuarter(at("18:35:00"))).isEqualTo(at("18:45:00"))
+        assertThat(BookingLifecycle.ceilToQuarter(at("18:45:00"))).isEqualTo(at("18:45:00"))
+        assertThat(BookingLifecycle.ceilToQuarter(at("18:45:00.001"))).isEqualTo(at("19:00:00"))
+        assertThat(BookingLifecycle.ceilToQuarter(at("23:59:59"))).isEqualTo(java.time.Instant.parse("2026-11-04T00:00:00Z"))
     }
 }

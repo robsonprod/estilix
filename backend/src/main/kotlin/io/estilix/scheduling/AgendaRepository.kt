@@ -10,9 +10,17 @@ import java.util.UUID
 
 enum class EntryKind { BOOKING, BLOCK }
 
-enum class EntryStatus { CONFIRMED, CANCELLED }
+enum class EntryStatus {
+    CONFIRMED, IN_SERVICE, DONE, NO_SHOW, CANCELLED;
 
-enum class Origin { PUBLIC, STAFF }
+    companion object {
+        /** Statuses that hold time; must match the predicate of `agenda_entry_no_overlap` (design D3). */
+        val HELD = setOf(CONFIRMED, IN_SERVICE, DONE)
+        const val HELD_SQL = "('CONFIRMED', 'IN_SERVICE', 'DONE')"
+    }
+}
+
+enum class Origin { PUBLIC, STAFF, WALK_IN }
 
 enum class CancelledBy { CUSTOMER, STAFF }
 
@@ -32,6 +40,7 @@ data class AgendaEntry(
     val origin: Origin?,
     val blockReason: String?,
     val cancelledBy: CancelledBy?,
+    val customerId: UUID? = null,
 )
 
 data class BookingGroup(val id: UUID, val phone: String, val codeHash: String)
@@ -58,7 +67,7 @@ class AgendaRepository(private val jdbc: JdbcClient) {
         jdbc.sql(
             """
             select professional_id, starts_at, ends_at from agenda_entry
-            where status = 'CONFIRMED' and starts_at < :to and ends_at > :from and (cast(:exclude as uuid) is null or id <> :exclude)
+            where status in ${EntryStatus.HELD_SQL} and starts_at < :to and ends_at > :from and (cast(:exclude as uuid) is null or id <> :exclude)
             """.trimIndent(),
         ).param("from", Timestamp.from(from)).param("to", Timestamp.from(to)).param("exclude", excludeId)
             .query { rs, _ -> Busy(rs.getObject(1, UUID::class.java), rs.getTimestamp(2).toInstant(), rs.getTimestamp(3).toInstant()) }
@@ -68,7 +77,7 @@ class AgendaRepository(private val jdbc: JdbcClient) {
         jdbc.sql(
             """
             select professional_id, count(*) from agenda_entry
-            where kind = 'BOOKING' and status = 'CONFIRMED' and starts_at >= :from and starts_at < :to
+            where kind = 'BOOKING' and status in ${EntryStatus.HELD_SQL} and starts_at >= :from and starts_at < :to
             group by professional_id
             """.trimIndent(),
         ).param("from", Timestamp.from(from)).param("to", Timestamp.from(to))
@@ -84,18 +93,20 @@ class AgendaRepository(private val jdbc: JdbcClient) {
         jdbc.sql("$SELECT where e.group_id = :g order by e.starts_at").param("g", groupId).query(::map).list()
 
     fun insertBooking(
-        professionalId: UUID, serviceId: UUID, groupId: UUID, start: Instant, end: Instant, name: String, phone: String, origin: Origin,
+        professionalId: UUID, serviceId: UUID, groupId: UUID?, start: Instant, end: Instant, name: String, phone: String, origin: Origin,
+        customerId: UUID, status: EntryStatus = EntryStatus.CONFIRMED,
     ): UUID {
         val id = UUID.randomUUID()
         jdbc.sql(
             """
             insert into agenda_entry (id, tenant_id, kind, professional_id, service_id, group_id, starts_at, ends_at,
-                                      customer_name, customer_phone, origin)
-            values (:id, app_tenant_id(), 'BOOKING', :p, :s, :g, :start, :end, :name, :phone, :origin)
+                                      customer_name, customer_phone, origin, customer_id, status)
+            values (:id, app_tenant_id(), 'BOOKING', :p, :s, :g, :start, :end, :name, :phone, :origin, :c, :status)
             """.trimIndent(),
         ).param("id", id).param("p", professionalId).param("s", serviceId).param("g", groupId)
             .param("start", Timestamp.from(start)).param("end", Timestamp.from(end))
-            .param("name", name).param("phone", phone).param("origin", origin.name).update()
+            .param("name", name).param("phone", phone).param("origin", origin.name)
+            .param("c", customerId).param("status", status.name).update()
         return id
     }
 
@@ -155,6 +166,61 @@ class AgendaRepository(private val jdbc: JdbcClient) {
         jdbc.sql("update booking_group set token_hash = :t where id = :id").param("id", groupId).param("t", tokenHash).update()
     }
 
+    // Attendance (change customers-and-service-records, design D2): conditional updates, 0 rows = lost the race.
+
+    fun transition(id: UUID, from: EntryStatus, to: EntryStatus): Int =
+        jdbc.sql("update agenda_entry set status = :to where id = :id and kind = 'BOOKING' and status = :from")
+            .param("id", id).param("from", from.name).param("to", to.name).update()
+
+    /** IN_SERVICE -> DONE; time planned after [boundary] is freed, keeping at least 15 minutes (design D5). */
+    fun finish(ids: Collection<UUID>, boundary: Instant): Int =
+        if (ids.isEmpty()) 0 else jdbc.sql(
+            """
+            update agenda_entry set status = 'DONE',
+                ends_at = case when ends_at > :b then least(ends_at, greatest(starts_at + interval '15 minutes', :b)) else ends_at end
+            where id in (:ids) and status = 'IN_SERVICE'
+            """.trimIndent(),
+        ).param("ids", ids).param("b", Timestamp.from(boundary)).update()
+
+    /** IN_SERVICE back to CONFIRMED (bookings) or CANCELLED (walk-ins, which were never booked). */
+    fun release(ids: Collection<UUID>): Int =
+        if (ids.isEmpty()) 0 else jdbc.sql(
+            """
+            update agenda_entry set
+                status = case when origin = 'WALK_IN' then 'CANCELLED' else 'CONFIRMED' end,
+                cancelled_by = case when origin = 'WALK_IN' then 'STAFF' end,
+                cancelled_at = case when origin = 'WALK_IN' then now() end
+            where id in (:ids) and status = 'IN_SERVICE'
+            """.trimIndent(),
+        ).param("ids", ids).update()
+
+    /** The earliest entry holding time for [professionalId] inside [from, to): its start, end and status. */
+    fun firstHeldOverlap(professionalId: UUID, from: Instant, to: Instant): Triple<Instant, Instant, EntryStatus>? =
+        jdbc.sql(
+            """
+            select starts_at, ends_at, status from agenda_entry
+            where professional_id = :p and status in ${EntryStatus.HELD_SQL} and starts_at < :to and ends_at > :from
+            order by starts_at limit 1
+            """.trimIndent(),
+        ).param("p", professionalId).param("from", Timestamp.from(from)).param("to", Timestamp.from(to))
+            .query { rs, _ -> Triple(rs.getTimestamp(1).toInstant(), rs.getTimestamp(2).toInstant(), EntryStatus.valueOf(rs.getString(3))) }
+            .list().firstOrNull()
+
+    fun customerEntries(customerId: UUID): List<AgendaEntry> =
+        jdbc.sql("$SELECT where e.customer_id = :c order by e.starts_at").param("c", customerId).query(::map).list()
+
+    /** Erases the copied name/phone and kills the group's link and code (design D10). */
+    fun anonymiseCustomer(customerId: UUID, placeholder: String, randomSecret: () -> String) {
+        val groups = jdbc.sql("select distinct group_id from agenda_entry where customer_id = :c and group_id is not null")
+            .param("c", customerId).query(UUID::class.java).list()
+        jdbc.sql("update agenda_entry set customer_name = :n, customer_phone = null where customer_id = :c")
+            .param("c", customerId).param("n", placeholder).update()
+        groups.forEach {
+            jdbc.sql("update booking_group set phone = null, code_hash = :code, token_hash = :token where id = :id")
+                .param("id", it).param("code", randomSecret()).param("token", randomSecret()).update()
+        }
+    }
+
     private fun map(rs: java.sql.ResultSet, @Suppress("UNUSED_PARAMETER") n: Int) = AgendaEntry(
         id = rs.getObject("id", UUID::class.java),
         kind = EntryKind.valueOf(rs.getString("kind")),
@@ -170,12 +236,13 @@ class AgendaRepository(private val jdbc: JdbcClient) {
         origin = rs.getString("origin")?.let(Origin::valueOf),
         blockReason = rs.getString("block_reason"),
         cancelledBy = rs.getString("cancelled_by")?.let(CancelledBy::valueOf),
+        customerId = rs.getObject("customer_id", UUID::class.java),
     )
 
     private companion object {
         const val SELECT = """
             select e.id, e.kind, e.professional_id, e.service_id, s.name as service_name, e.group_id, e.starts_at, e.ends_at,
-                   e.status, e.customer_name, e.customer_phone, e.origin, e.block_reason, e.cancelled_by
+                   e.status, e.customer_name, e.customer_phone, e.origin, e.block_reason, e.cancelled_by, e.customer_id
             from agenda_entry e left join service s on s.id = e.service_id
         """
     }

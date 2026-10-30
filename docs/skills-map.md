@@ -29,15 +29,16 @@ Legend: ✅ built · 🔨 in progress · 📋 planned · 📝 documented trade-o
 
 | Skill | Business case | Change | Evidence | Status |
 |---|---|---|---|---|
-| PostgreSQL (advanced) | Many salons in one database without leaks | `platform-foundation` | Row-Level Security, guard test for unprotected tables | 🔨 |
+| PostgreSQL (advanced) | Many salons in one database without leaks; no double booking; history without drifting counters | `platform-foundation`, `scheduling`, `customers-and-service-records` | Row-Level Security with a guard test, exclusion constraints (`tstzrange`), partial unique indexes, `security_invoker` views, conditional-update state machines with race tests | ✅ |
 | Kafka | A recorded service must update finance, retention and search without the cashier waiting for all of them | `event-backbone` | Transactional outbox, partition by tenant, consumer groups | 📋 |
 | Delivery guarantees and retry | No lost "service recorded" event, no double commission | `event-backbone`, `notifications` | At-least-once + idempotent consumers, exponential backoff with jitter, dead-letter topic/queue, replay tool | 📋 |
-| Redis | Public booking page and OTP codes are open to the internet: limit abuse; cache availability | `scheduling` | Token-bucket rate limit per IP and per phone, 429 Problem Details | 📋 |
-| Rate limiting | Same as above + AI quota per plan | `scheduling`, `ai-gateway-and-guardrails` | Tests for burst and refill | 📋 |
+| Redis | Public booking page and OTP codes are open to the internet: limit abuse; cache availability | `scheduling` | Fixed-window rate limit per IP and per phone, 429 Problem Details, in-memory fallback | ✅ |
+| Rate limiting | Same as above + AI quota per plan | `scheduling`, `ai-gateway-and-guardrails` | Tests for burst and refill | 🔨 |
 | Circuit breaker | E-mail provider or LLM slow → the agenda must stay fast | `notifications`, AI changes | Resilience4j breaker, timeout, bulkhead, fallback; chaos test with Toxiproxy | 📋 |
 | Health checks | Orchestrator restarts only broken processes and stops routing to unready ones | `platform-foundation` | Liveness vs readiness, dependency indicators | 🔨 |
 | Elasticsearch | Find "Ana Paula" typed as "ana paul" or by the last 4 phone digits; BM25 side of hybrid RAG | `customer-search`, `help-center-rag` | Index fed by events (CQRS read model), tenant-scoped queries | 📋 |
 | MongoDB (Atlas / self-hosted) | Agent conversations and checkpoints: nested, schema-flexible, written often, read by thread | `salon-assistant-agents` | LangGraph MongoDB checkpointer; Atlas free tier on AWS, container locally | 📋 |
+| LGPD by design | A customer asks for a copy of her data or to be erased; the salon must keep its revenue right | `customers-and-service-records` | Owner-only export (JSON) and anonymisation through per-module holders, audited by id, amounts kept; consent with date, source and history | ✅ |
 | Cassandra, HBase, Cosmos DB | No workload in Estilix needs them at this scale | — | ADR "when we would pick a wide-column store" (e.g. audit at billions of rows, multi-region writes) | 📝 |
 
 ## Front-end, cloud and DevOps

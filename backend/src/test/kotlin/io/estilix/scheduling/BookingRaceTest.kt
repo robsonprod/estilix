@@ -52,6 +52,30 @@ class BookingRaceTest : IntegrationTest() {
     }
 
     @Test
+    fun `concurrent first bookings of one phone end linked to a single customer`() {
+        val owner = s.owner()
+        val start = CountDownLatch(1)
+        val statuses = Executors.newVirtualThreadPerTaskExecutor().use { pool ->
+            (0 until 8).map { i ->
+                pool.submit<Int> {
+                    start.await()
+                    api.post(
+                        "/api/v1/tenants/${s.tenant}/agenda/bookings", token(owner),
+                        mapOf(
+                            "serviceId" to s.corte, "professionalId" to if (i % 2 == 0) s.paula else s.rosa, "date" to s.dayAfterTomorrow(),
+                            "time" to "%02d:00".format(8 + i), "name" to "Ana $i", "phone" to "(11) 98888-7777",
+                        ),
+                    ).status
+                }
+            }.also { start.countDown() }.map { it.get() }
+        }
+
+        assertThat(statuses).containsOnly(201)
+        assertThat(admin.sql("select count(*) from customer").query(Long::class.java).single()).isEqualTo(1)
+        assertThat(admin.sql("select count(distinct customer_id) from agenda_entry").query(Long::class.java).single()).isEqualTo(1)
+    }
+
+    @Test
     fun `negative control - without the constraint the same race double-books`() {
         admin.sql("alter table agenda_entry drop constraint agenda_entry_no_overlap").update()
         try {
@@ -63,7 +87,7 @@ class BookingRaceTest : IntegrationTest() {
                 """
                 alter table agenda_entry add constraint agenda_entry_no_overlap exclude using gist (
                     professional_id with =, tstzrange(starts_at, ends_at, '[)') with &&
-                ) where (status = 'CONFIRMED')
+                ) where (status in ('CONFIRMED', 'IN_SERVICE', 'DONE'))
                 """.trimIndent(),
             ).update()
         }

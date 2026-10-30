@@ -2,7 +2,7 @@
 
 Multi-tenant SaaS for beauty salons and barbershops in Brazil: online booking without a phone call, 3-tap service records, customer history, cash and commission control, "customers to call back" with personalized messages — and an AI assistant that helps the owner act on it.
 
-> Status: **`platform-foundation`, `salon-setup` and `scheduling` implemented** — public booking page per salon (calendar, free times in green, code and manage link), staff agenda with blocks, self-service sign-up with support approval, services and professionals, on top of multi-tenancy with Row-Level Security, roles, audit log and personal-data masking. Next: `customers-and-service-records`. Commands marked *(planned)* arrive with the change named next to them.
+> Status: **`platform-foundation`, `salon-setup`, `scheduling` and `customers-and-service-records` implemented** — 3-tap service records (comanda) started from the agenda or for walk-ins, customers by phone with visit history, usual return interval and marketing consent, LGPD export and anonymisation, public booking page per salon (calendar, free times in green, code and manage link), staff agenda with blocks, self-service sign-up with support approval, services and professionals, on top of multi-tenancy with Row-Level Security, roles, audit log and personal-data masking. Next: `event-backbone`. Commands marked *(planned)* arrive with the change named next to them.
 
 ## Why this project
 
@@ -73,6 +73,14 @@ Open http://localhost:4200: the public landing page and the plans page need no l
 
 Public booking, no login: open http://localhost:4200/agendar/salao-bela-vista → choose a service → (professional or "Qualquer profissional") → a green time → name and phone → confirmed with a 6-digit code and a manage link; "Adicionar mais um serviço" books the next service right when the first ends. Then sign in as `dona-bela` → **Agenda**: the booking is there next to the demo bookings and a block. Two people confirming the same time: the first wins, the second sees "Esse horário acabou de ser preenchido".
 
+Service records, as `dona-bela` → **Agenda**, today:
+- Tap Marina's booking, then "Iniciar atendimento". The comanda opens with the price filled in. "Concluir" → "Pix" closes it, and the booking turns "Concluído".
+- Carla's 09:00 shows "Não veio", and that time is free again.
+- Fernanda is "Em atendimento" with an open comanda.
+- "Novo atendimento" takes a walk-in: type the phone and a known customer's name appears.
+
+Then open **Clientes** → Marina: 3 visits, "costuma voltar a cada 31 dias", consent history. Under "Privacidade (LGPD)" are the export and anonymisation. As `pro-bela`, Clientes shows only Paula's customers.
+
 The full sign-up flow, end to end: open `/planos` → "Assinar" → log in as a new name → choose "Barbearia" → name, phone and city (hours and services already filled) → accept the terms → "Enviar para análise". Then log in as `suporte`, open "Salões aguardando liberação" and approve. Log in again with the new name: the salon opens with its services.
 
 Swagger UI (local profile): http://localhost:8080/swagger-ui.html
@@ -80,7 +88,7 @@ Swagger UI (local profile): http://localhost:8080/swagger-ui.html
 ## Tests
 
 ```bash
-cd backend && ./gradlew check        # 213 tests: real PostgreSQL and Redis (Testcontainers) + real signed JWTs
+cd backend && ./gradlew check        # 300 tests: real PostgreSQL and Redis (Testcontainers) + real signed JWTs
 cd frontend && npx ng lint && npx ng test --watch=false && npx ng build
 ```
 
@@ -98,7 +106,13 @@ What the back-end suite proves, among others:
 - overlapping opening hours are refused by an exclusion constraint, and a professional can never be linked to another salon's service (composite foreign key), even with the right RLS context;
 - the public endpoints expose no salon data; the landing page and plans are prerendered HTML;
 - 20 concurrent bookings for the same professional and time: exactly one wins (with a negative control that drops the exclusion constraint and shows duplicates); a block can never overlap a booking;
-- public rate limits per IP and per phone return 429 with Retry-After, keep working per instance when Redis is down, and readiness stays UP without Redis.
+- public rate limits per IP and per phone return 429 with Retry-After, keep working per instance when Redis is down, and readiness stays UP without Redis;
+- 10 concurrent "Iniciar atendimento" on one booking open exactly one comanda, repeated 20 times. A negative control removes the status guard and shows the duplicates;
+- a walk-in over a booking is refused naming the booking time, and leaves no record and no customer behind;
+- no-show frees the time, while in-service and done keep it (exclusion constraint predicate);
+- anonymisation keeps the salon's totals, erases name, phone and notes, kills the old manage link and frees the phone for a new customer;
+- a professional sees only the customers and records of their own professional (not-found otherwise);
+- customer names, phones and notes never reach logs, error bodies or audit details.
 
 The Kotlin compiler targets JVM 25 (`jvmTarget = 25`, class file major version 69).
 
@@ -109,6 +123,7 @@ The Kotlin compiler targets JVM 25 (`jvmTarget = 25`, class file major version 6
 - [ADR 0003 — Personal data declared as types](docs/adr/0003-personal-data-as-types.md)
 - [ADR 0004 — Tenant lifecycle guarded by the database; self-service onboarding with approval](docs/adr/0004-tenant-lifecycle-and-onboarding.md)
 - [ADR 0005 — One agenda table guarded by an exclusion constraint; public requests under RLS](docs/adr/0005-agenda-entries-and-public-tenant-context.md)
+- [ADR 0006 — Service records drive the booking lifecycle; customers are anonymised, never deleted](docs/adr/0006-service-records-lifecycle-and-anonymisation.md)
 
 ## Turn AWS on and off
 

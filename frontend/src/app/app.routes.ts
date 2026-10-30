@@ -46,6 +46,8 @@ export const routes: Routes = [
         children: [
           { path: '', loadComponent: () => import('./pages/tenant-home.page').then((m) => m.TenantHomePage) },
           { path: 'agenda', loadComponent: () => import('./pages/agenda/agenda.page').then((m) => m.AgendaPage) },
+          { path: 'clientes', loadComponent: () => import('./pages/customers/customers.page').then((m) => m.CustomersPage) },
+          { path: 'clientes/:customerId', loadComponent: () => import('./pages/customers/customer.page').then((m) => m.CustomerPage) },
           { path: 'servicos', loadComponent: () => import('./pages/settings/services.page').then((m) => m.ServicesPage) },
           { path: 'profissionais', loadComponent: () => import('./pages/settings/professionals.page').then((m) => m.ProfessionalsPage) },
           { path: 'salao', loadComponent: () => import('./pages/settings/salon.page').then((m) => m.SalonPage) },

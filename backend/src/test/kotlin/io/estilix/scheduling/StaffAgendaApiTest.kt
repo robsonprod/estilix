@@ -135,6 +135,93 @@ class StaffAgendaApiTest : IntegrationTest() {
         assertThat(item.path("customerName").asString()).isEqualTo("A*** S****")
     }
 
+    // Attendance (change customers-and-service-records) -------------------------------------------
+
+    private fun bookTodayAtMidnight(subject: String = manager, professional: UUID = s.paula, service: UUID = s.escova): String {
+        val id = staffBook(subject, professional, time = "00:00", service = service).node.path("item").path("id").asString()
+        // Same clock time, today: always already started, whatever the time the test runs.
+        admin.sql("update agenda_entry set starts_at = starts_at - interval '2 days', ends_at = ends_at - interval '2 days' where id = :id")
+            .param("id", UUID.fromString(id)).update()
+        return id
+    }
+
+    private fun status(id: String) = admin.sql("select status from agenda_entry where id = :id").param("id", UUID.fromString(id)).query(String::class.java).single()
+
+    @Test
+    fun `customer did not come - no-show frees the time and counts in the history`() {
+        val id = bookTodayAtMidnight()
+
+        val marked = api.post("$base/agenda/bookings/$id/no-show", token(manager))
+
+        assertThat(marked.node.path("status").asString()).isEqualTo("NO_SHOW")
+        // The time is free again: the database accepts another booking over it.
+        admin.sql(
+            """
+            insert into agenda_entry (id, tenant_id, kind, professional_id, service_id, starts_at, ends_at, customer_name, customer_phone, origin)
+            select gen_random_uuid(), tenant_id, 'BOOKING', professional_id, service_id, starts_at, ends_at, 'Outra', '+5511900000000', 'WALK_IN'
+            from agenda_entry where id = :id
+            """.trimIndent(),
+        ).param("id", UUID.fromString(id)).update()
+        val customer = admin.sql("select customer_id from agenda_entry where id = :id").param("id", UUID.fromString(id)).query(UUID::class.java).single()
+        assertThat(api.get("$base/customers/$customer", token(manager)).node.path("noShows").asInt()).isEqualTo(1)
+    }
+
+    @Test
+    fun `too early for no-show, and another salon gets not-found`() {
+        val future = staffBook(manager, s.paula).node.path("item").path("id").asString()
+        assertThat(api.post("$base/agenda/bookings/$future/no-show", token(manager)).code).isEqualTo("validation")
+
+        val other = fixtures.tenant("Outro")
+        fixtures.memberOf(other, "owner-outro-ns", "OWNER")
+        assertThat(api.post("/api/v1/tenants/$other/agenda/bookings/$future/no-show", token("owner-outro-ns")).status).isEqualTo(404)
+        assertThat(status(future)).isEqualTo("CONFIRMED")
+    }
+
+    @Test
+    fun `a professional marks no-show only on their own agenda`() {
+        val rosas = bookTodayAtMidnight(professional = s.rosa, service = s.manicure)
+        assertThat(api.post("$base/agenda/bookings/$rosas/no-show", token(s.paulaSubject)).status).isEqualTo(403)
+    }
+
+    @Test
+    fun `attended bookings are final for customers and staff`() {
+        s.rules(cancelNotice = 0)
+        val response = api.post(
+            "/api/v1/public/salons/${s.slug}/bookings", null,
+            mapOf("serviceId" to s.corte, "professionalId" to s.paula, "date" to s.dayAfterTomorrow(), "time" to "10:00", "name" to "Ana", "phone" to "(11) 98888-1111"),
+        ).node
+        val token = response.path("token").asString()
+        val id = response.path("bookings")[0].path("id").asString()
+        admin.sql("update agenda_entry set status = 'DONE' where id = :id").param("id", UUID.fromString(id)).update()
+
+        val view = api.get("/api/v1/public/bookings/$token").node.path("bookings")[0]
+        assertThat(view.path("status").asString()).isEqualTo("DONE")
+        assertThat(view.path("canChange").asBoolean()).isFalse()
+        assertThat(api.post("/api/v1/public/bookings/$token/$id/cancel", null).code).isEqualTo("validation")
+        assertThat(status(id)).isEqualTo("DONE")
+
+        admin.sql("update agenda_entry set status = 'NO_SHOW' where id = :id").param("id", UUID.fromString(id)).update()
+        val moved = api.post("$base/agenda/bookings/$id/reschedule", token(manager), mapOf("date" to s.dayAfterTomorrow(), "time" to "16:00"))
+        assertThat(moved.code).isEqualTo("validation")
+        assertThat(moved.node.path("detail").asString()).contains("novo agendamento")
+    }
+
+    @Test
+    fun `a service in progress holds the time and the day view shows every status`() {
+        val inService = staffBook(manager, s.paula, time = "09:00", service = s.escova).node.path("item").path("id").asString()
+        val done = staffBook(manager, s.paula, time = "11:00").node.path("item").path("id").asString()
+        val noShow = staffBook(manager, s.paula, time = "13:00").node.path("item").path("id").asString()
+        admin.sql("update agenda_entry set status = 'IN_SERVICE' where id = :id").param("id", UUID.fromString(inService)).update()
+        admin.sql("update agenda_entry set status = 'DONE' where id = :id").param("id", UUID.fromString(done)).update()
+        admin.sql("update agenda_entry set status = 'NO_SHOW' where id = :id").param("id", UUID.fromString(noShow)).update()
+
+        assertThat(staffBook(manager, s.paula, time = "09:30").code).isEqualTo("slot-taken")
+        assertThat(staffBook(manager, s.paula, time = "13:00").status).isEqualTo(201)
+        val items = day(manager).node.path("professionals").toList().first { it.path("displayName").asString() == "Paula" }.path("items").toList()
+        assertThat(items.map { it.path("start").asString() + " " + it.path("status").asString() })
+            .contains("09:00 IN_SERVICE", "11:00 DONE", "13:00 NO_SHOW", "13:00 CONFIRMED")
+    }
+
     @Test
     fun `agenda operations log no customer data`(output: CapturedOutput) {
         staffBook(owner, s.paula)

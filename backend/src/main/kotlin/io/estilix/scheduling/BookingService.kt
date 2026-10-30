@@ -1,5 +1,7 @@
 package io.estilix.scheduling
 
+import io.estilix.privacy.Phones
+import io.estilix.customers.CustomerDirectory
 import io.estilix.salon.EffectiveHours
 import io.estilix.salon.Professional
 import io.estilix.salon.ProfessionalRepository
@@ -48,6 +50,7 @@ class BookingService(
     private val salons: SalonRepository,
     private val services: ServiceRepository,
     private val professionals: ProfessionalRepository,
+    private val customers: CustomerDirectory,
     private val clock: Clock,
     transactionManager: PlatformTransactionManager,
     @Value("\${estilix.booking.code-pepper}") private val pepper: String,
@@ -145,6 +148,8 @@ class BookingService(
         } else {
             name to phone!!
         }
+        // Spec customers/customer-records "Customers are linked automatically": an existing name is kept.
+        val customerId = customers.linkOrCreate(customerPhone, customerName)
         if (!staff) limitPerPhone(customerPhone, date, salon.zone)
 
         var code: String? = null
@@ -160,7 +165,7 @@ class BookingService(
         val ordered = free.sortedWith(compareBy({ load[it] ?: 0 }, { it.toString() }))
         for (professionalId in ordered) {
             val id = try {
-                savepoint.execute { agenda.insertBooking(professionalId, service.id, groupId, start, end, customerName, customerPhone, cmd.origin) }
+                savepoint.execute { agenda.insertBooking(professionalId, service.id, groupId, start, end, customerName, customerPhone, cmd.origin, customerId) }
             } catch (e: DataAccessException) {
                 if (isOverlap(e)) continue else throw e
             }
@@ -173,6 +178,7 @@ class BookingService(
     fun cancel(entryId: UUID, by: CancelledBy, enforceNotice: Boolean): AgendaEntry = tx.execute {
         val entry = booking(entryId)
         if (entry.status == EntryStatus.CANCELLED) return@execute entry
+        requireConfirmed(entry)
         if (enforceNotice) requireBeforeNotice(entry)
         agenda.cancel(entryId, by)
         agenda.entry(entryId)!!
@@ -181,7 +187,8 @@ class BookingService(
     /** Spec "Reschedule": atomic; on a taken target the booking stays where it was (the transaction rolls back). */
     fun reschedule(entryId: UUID, date: LocalDate?, time: String?, professionalId: UUID?, staff: Boolean): Pair<AgendaEntry, AgendaEntry> = tx.execute {
         val before = booking(entryId)
-        if (before.status != EntryStatus.CONFIRMED) throw DomainException(ProblemType.CONFLICT, "Este agendamento foi cancelado")
+        if (before.status == EntryStatus.CANCELLED) throw DomainException(ProblemType.CONFLICT, "Este agendamento foi cancelado")
+        requireConfirmed(before)
         if (!staff) requireBeforeNotice(before)
         val minute = time?.let(Availability::parse)
         if (date == null || minute == null || minute % Availability.GRID != 0) {
@@ -248,6 +255,17 @@ class BookingService(
 
     private fun booking(id: UUID): AgendaEntry =
         agenda.entry(id)?.takeIf { it.kind == EntryKind.BOOKING } ?: throw NotFoundException("Agendamento não encontrado")
+
+    /** Spec bookings "Attended bookings are final". */
+    private fun requireConfirmed(entry: AgendaEntry) {
+        val message = when (entry.status) {
+            EntryStatus.IN_SERVICE -> "Este atendimento já começou"
+            EntryStatus.DONE -> "Este atendimento já foi concluído"
+            EntryStatus.NO_SHOW -> "Este horário foi marcado como \"não veio\". Faça um novo agendamento."
+            else -> return
+        }
+        throw DomainException(ProblemType.VALIDATION, message, mapOf("status" to entry.status.name))
+    }
 
     private fun requireBeforeNotice(entry: AgendaEntry) {
         val rules = agenda.rules()

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, input, OnInit, signal } from '@angular/core';
-import { GroupView, Problem, PublicBookingItem } from '../../core/models';
+import { BOOKING_STATUS_LABEL, GroupView, Problem, PublicBookingItem } from '../../core/models';
 import { longDate, SchedulingApi } from '../../core/scheduling-api.service';
 import { addMonths, Calendar } from '../../shared/calendar';
 import { TimeGrid } from '../../shared/time-grid';
@@ -30,8 +30,8 @@ import { monthBounds, noticeLabel } from './booking-flow';
                   <strong>{{ b.serviceName }}</strong> com {{ b.professionalName }}
                   <div class="muted small">{{ longDate(b.date) }} · {{ b.start }}–{{ b.end }}</div>
                 </div>
-                <span class="badge" [class.ok]="b.status === 'CONFIRMED'" [class.neutral]="b.status !== 'CONFIRMED'">
-                  {{ b.status === 'CONFIRMED' ? 'Confirmado' : 'Cancelado' }}
+                <span class="badge" [class.ok]="b.status === 'CONFIRMED' || b.status === 'DONE'" [class.neutral]="b.status === 'CANCELLED' || b.status === 'NO_SHOW'">
+                  {{ statusLabel[b.status] }}
                 </span>
               </div>
               @if (b.status === 'CONFIRMED') {
@@ -75,6 +75,7 @@ export class ManageBookingPage implements OnInit {
   readonly token = input.required<string>();
 
   protected readonly longDate = longDate;
+  protected readonly statusLabel = BOOKING_STATUS_LABEL;
   protected readonly noticeLabel = noticeLabel;
   protected readonly view = signal<GroupView | null>(null);
   protected readonly error = signal<Problem | null>(null);
